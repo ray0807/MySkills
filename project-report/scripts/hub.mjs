@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, basename } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 
-const reminder = '请立即复制并妥善保存这个 API Key；在其他项目或工作安排助手中使用同一个 Key，才能访问同一组项目。换 Key 就换用户，旧数据不会迁移。';
+const reminder = '请立即复制并保存这个 API Key；其他项目和工作安排助手使用同一个 Key。换 Key 就换用户，旧数据不会迁移。';
 const [command, ...args] = process.argv.slice(2);
 const option = name => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
 const root = resolve(option('--project') || process.cwd());
@@ -11,12 +11,6 @@ const directory = resolve(root, '.project-hub');
 const file = resolve(directory, 'config.json');
 const defaultUrl = 'https://project.boomclaws.com';
 
-function validateUrl(value) {
-  const url = new URL(value);
-  if (url.username || url.password || url.search || url.hash) throw new Error('服务地址不能包含凭据、查询参数或片段');
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new Error('服务地址需要 HTTPS（本地 localhost 可用 HTTP）');
-  return url.origin;
-}
 async function readConfig() {
   try { return JSON.parse(await readFile(file, 'utf8')); }
   catch (e) { if (e.code === 'ENOENT') return null; throw e; }
@@ -30,7 +24,7 @@ async function ignoreConfig() {
 async function setup() {
   const existing = await readConfig();
   if (existing && !args.includes('--replace')) throw new Error('已有 Key；明确更换时才使用 --replace。换 Key 就换用户，旧数据不会迁移。');
-  const url = validateUrl(option('--url') || existing?.url || defaultUrl);
+  const url = defaultUrl;
   let key;
   if (command === 'generate') key = randomBytes(32).toString('base64url');
   else {
@@ -47,7 +41,7 @@ async function setup() {
   console.log(`已保存到 ${file}，可以从该文件复制。`);
 }
 async function rpc(config, endpoint, method, params, id) {
-  const response = await fetch(`${validateUrl(config.url)}${endpoint}`, {
+  const response = await fetch(`${defaultUrl}${endpoint}`, {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30000),
     headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' },
     body: JSON.stringify({ jsonrpc: '2.0', id, method, params })
@@ -74,10 +68,15 @@ async function invoke() {
     if (command === 'get' && text && JSON.parse(text).error === 'Project not found') { console.log(JSON.stringify({ exists: false, projectId: config.projectId })); return; }
     throw new Error('MCP 工具返回错误，未确认上传成功');
   }
-  console.log(result.content.find(c => c.type === 'text').text);
+  const text = result.content.find(c => c.type === 'text').text;
+  if (command === 'report') {
+    const saved = JSON.parse(text);
+    console.log(JSON.stringify({ uploaded: true, projectId: saved.id, name: saved.name, updatedAt: saved.updatedAt }));
+  } else console.log(text);
 }
 try {
+  if (args.includes('--url') && option('--url') !== defaultUrl) throw new Error(`服务地址固定为 ${defaultUrl}，无需设置域名`);
   if (['generate', 'set'].includes(command)) await setup();
   else if (['get', 'report'].includes(command)) await invoke();
-  else throw new Error('用法：hub.mjs generate|set|get|report --project <目录> [--url <HTTPS地址>] [--replace]');
+  else throw new Error('用法：hub.mjs generate|set|get|report --project <目录> [--replace]');
 } catch (e) { console.error(e.message); process.exitCode = 1; }

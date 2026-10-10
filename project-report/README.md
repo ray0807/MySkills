@@ -10,6 +10,8 @@
 - 读取已有项目记录，更新完整快照并上传；管理中心同时保存上报历史。
 - 引导你输入已有 API Key，或自动生成新的 Key。
 
+只整理当前项目的目标、进度与工作任务，不主动检查 GitHub、处理嵌套仓库、移动目录或清理旧部署。上报完成只给出简短结果，不展示完整 JSON 和过程日志。
+
 它会先查资料，再分轮询问缺失信息，不会一次把所有问题丢给你。无法确认的内容会标记为待确认，不会编造进度或把未运行的测试标为通过。
 
 ## 使用场景
@@ -24,7 +26,7 @@
 
 1. 支持加载 `SKILL.md` 并执行本地脚本的 AI 客户端，例如 Codex。
 2. Node.js 22 或更新版本。
-3. 可访问配套项目管理中心。默认服务为 [project.boomclaws.com](https://project.boomclaws.com)，也支持通过 `--url` 指定自己的部署地址。
+3. 可访问配套项目管理中心 [project.boomclaws.com](https://project.boomclaws.com)。Skill 的服务地址已固定，无需选择或填写域名。
 
 默认上报 MCP：`https://project.boomclaws.com/mcp/report`；查询 MCP：`https://project.boomclaws.com/mcp/query`。工作安排助手也可携带相同 Key 请求 `GET https://project.boomclaws.com/api/projects` 获取全部项目。
 
@@ -50,7 +52,7 @@ Codex 通常使用 `~/.codex/skills/`。安装后，在目标项目的对话中�
 $project-report 帮我整理这个项目的进度，补问缺失信息并上报。
 ```
 
-首次使用时，助手会说明默认服务地址，并询问你要输入已有 Key 还是生成新 Key。之后会读取资料和已有记录，补问必要信息，整理并上传。已有项目使用保存的地址，不会自动切换服务。
+首次使用时，助手只询问你要输入已有 Key 还是生成新 Key，不询问或确认域名。之后会读取资料和已有记录，补问项目所需信息，整理并上传。
 
 也可以要求：
 
@@ -101,7 +103,7 @@ else
 fi
 ```
 
-**安装时不需要 API Key，也不要生成 Key 或上传项目。** 用户首次调用时，说明默认服务为 `https://project.boomclaws.com`，再询问输入已有 Key 或生成新 Key。用户使用自建服务时才需要补充地址。客户端不支持加载 Skills 时，不要声称已安装成功；可说明本地脚本调用方式。
+**安装时不需要 API Key，也不要生成 Key 或上传项目。** 服务固定为 `https://project.boomclaws.com`，不要询问域名。用户首次调用时，只询问输入已有 Key 或生成新 Key。客户端不支持加载 Skills 时，不要声称已安装成功；可说明本地脚本调用方式。
 
 ## API Key 规则
 
@@ -111,6 +113,7 @@ fi
 - 换 Key 就换用户。旧数据仍属于旧 Key，不会自动迁移；保留旧 Key 才能继续访问旧数据。
 - 新项目没有 Key 时，助手会让你选择输入已有 Key 或生成新 Key，不会擅自沿用其他项目的 Key。
 - 每次设置、生成或更新 Key 后，都会提醒你立即复制并妥善保存。
+- 新生成 Key 会直接在聊天回复中以完整、可复制的代码块展示，不需要去配置文件中寻找。沿用已有 Key 的普通上报不会重复展示或提醒。
 
 自动生成的 Key 使用密码学随机数。自定义 Key 需为 24–256 个不含空格的可打印 ASCII 字符，建议使用随机 Key。
 
@@ -136,7 +139,7 @@ node "<Skill目录>/scripts/hub.mjs" report --project "<项目目录>"
 
 已有配置时，脚本不会直接覆盖 Key。明确要更换时，在 `generate` 或 `set` 命令后添加 `--replace`。更换意味着切换到另一个用户的数据空间。
 
-省略 `--url` 时使用已有项目保存的地址；没有配置时使用 `https://project.boomclaws.com`。自建服务可以添加 `--url https://<服务域名>`。生产服务地址必须使用 HTTPS；本地调试允许 localhost HTTP。
+脚本固定连接 `https://project.boomclaws.com`，无需传入 `--url`。旧配置中的地址不参与选择，生成或设置 Key 时会写入固定服务地址。
 
 ## 上报内容与注意事项
 

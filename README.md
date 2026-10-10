@@ -10,7 +10,7 @@
 | --- | --- |
 | [project-report](project-report/README.md) | 整理项目进度，主动补问缺失的目标、验收和排期信息，通过 MCP 上报到项目管理中心，供 AI 助手汇总项目并安排工作。 |
 
-`project-report` 默认连接已部署的服务 [project.boomclaws.com](https://project.boomclaws.com)，也支持自建服务地址。API Key 在使用 Skill 时设置，安装时无需提供。
+`project-report` 固定连接已部署的服务 [project.boomclaws.com](https://project.boomclaws.com)，无需选择或填写域名。API Key 在使用 Skill 时设置，安装时无需提供。
 
 ## 如何使用
 
