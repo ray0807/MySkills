@@ -11,7 +11,8 @@ description: 汇总当前项目进展，主动补问缺失目标、验收和排�
 
 项目连接保存在当前项目 `.project-hub/config.json`，属于本机私密配置，不上传、不提交 Git、不写入项目摘要。使用本 Skill 的 `scripts/hub.mjs` 管理和调用连接。相对路径从 Skill 目录解析；通过 `--project <项目绝对目录>` 明确目标。
 
-- 当前项目没有配置时，先问“你要输入已有 API Key，还是生成新 Key？”。同时询问服务 HTTPS 地址（已有可靠配置时可沿用地址，但不从其他项目自动复制 Key）。已有 Key 可将新项目并入同一用户；新 Key 是全新用户。
+- 默认服务地址为 `https://project.boomclaws.com`，上报 MCP 为 `/mcp/report`，查询 MCP 为 `/mcp/query`。已有项目配置优先，用户也可以指定自己的服务地址。首次使用说明将连接默认服务，无需重复询问地址；不要自动修改已有配置的地址。
+- 当前项目没有配置时，先问“你要输入已有 API Key，还是生成新 Key？”。不从其他项目自动复制 Key。已有 Key 可将新项目并入同一用户；新 Key 是全新用户。
 - 用户选择生成后运行 `node <skill>/scripts/hub.mjs generate --project <目录> --url <服务地址>`。使用密码学随机 Key，不用模型编造。
 - 用户选择输入已有 Key 时，可让用户在本机终端运行 `node <skill>/scripts/hub.mjs set --project <目录> --url <服务地址>`，交互输入，避免 Key 出现在命令参数或工具日志中。若用户已经在会话提供 Key，保存时避免再次输出。
 - 已有配置时保留原 Key。仅在用户明确要求更换时使用 `--replace`，说明“换 Key 就换用户，旧项目仍属于旧 Key，不迁移；保留旧 Key 才能再次读取旧数据”。

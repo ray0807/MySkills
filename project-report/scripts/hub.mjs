@@ -9,6 +9,7 @@ const option = name => { const i = args.indexOf(name); return i < 0 ? undefined 
 const root = resolve(option('--project') || process.cwd());
 const directory = resolve(root, '.project-hub');
 const file = resolve(directory, 'config.json');
+const defaultUrl = 'https://project.boomclaws.com';
 
 function validateUrl(value) {
   const url = new URL(value);
@@ -29,7 +30,7 @@ async function ignoreConfig() {
 async function setup() {
   const existing = await readConfig();
   if (existing && !args.includes('--replace')) throw new Error('已有 Key；明确更换时才使用 --replace。换 Key 就换用户，旧数据不会迁移。');
-  const url = validateUrl(option('--url') || existing?.url || '');
+  const url = validateUrl(option('--url') || existing?.url || defaultUrl);
   let key;
   if (command === 'generate') key = randomBytes(32).toString('base64url');
   else {

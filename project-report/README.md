@@ -24,7 +24,9 @@
 
 1. 支持加载 `SKILL.md` 并执行本地脚本的 AI 客户端，例如 Codex。
 2. Node.js 22 或更新版本。
-3. 已部署的配套项目管理中心及其 HTTPS 地址。服务需要提供 `/mcp/report` 和 `/mcp/query` 两个 Streamable HTTP MCP 接口。
+3. 可访问配套项目管理中心。默认服务为 [project.boomclaws.com](https://project.boomclaws.com)，也支持通过 `--url` 指定自己的部署地址。
+
+默认上报 MCP：`https://project.boomclaws.com/mcp/report`；查询 MCP：`https://project.boomclaws.com/mcp/query`。工作安排助手也可携带相同 Key 请求 `GET https://project.boomclaws.com/api/projects` 获取全部项目。
 
 此文件夹只包含 Skill 和调用脚本，不包含服务端。配套服务采用 Cloudflare Workers + D1，可独立部署；服务部署时不需要设置用户 API Key。
 
@@ -48,7 +50,7 @@ Codex 通常使用 `~/.codex/skills/`。安装后，在目标项目的对话中�
 $project-report 帮我整理这个项目的进度，补问缺失信息并上报。
 ```
 
-首次使用时，助手会询问服务地址，以及你要输入已有 Key 还是生成新 Key。之后会读取资料和已有记录，补问必要信息，整理并上传。
+首次使用时，助手会说明默认服务地址，并询问你要输入已有 Key 还是生成新 Key。之后会读取资料和已有记录，补问必要信息，整理并上传。已有项目使用保存的地址，不会自动切换服务。
 
 也可以要求：
 
@@ -59,6 +61,47 @@ $project-report 帮我整理这个项目的进度，补问缺失信息并上报�
 ```text
 帮我生成一个新的 API Key。
 ```
+
+## 给 AI Agent 的安装说明
+
+当用户要求安装此 Skill 时：
+
+1. 从本地仓库或用户提供的 GitHub 仓库获取完整 `project-report` 文件夹，读取 `SKILL.md`。本仓库的根目录就是技能集合，源路径为 `<仓库目录>/project-report`；在完整项目仓库中，源路径为 `<项目仓库>/skills/project-report`。
+2. 确定客户端技能目录。Codex 使用 `$CODEX_HOME/skills`；未设置 `CODEX_HOME` 时使用 `~/.codex/skills`。复制后目标应为 `<技能目录>/project-report/SKILL.md`，不要额外嵌套一层同名目录。
+3. 复制整个文件夹。若同名技能已存在，先检查已有版本和用户的更新要求，保留本机自定义内容。
+4. 确认 `SKILL.md`、`references/report.md` 和 `scripts/hub.mjs` 均存在。运行 `node --version` 检查 Node.js 22 或更新版本，并运行 `node --check <安装目录>/scripts/hub.mjs` 检查脚本。
+5. 回复安装路径和 `$project-report` 调用示例。若依赖未满足，明确说明。若当前会话尚未识别新技能，可让用户开启新会话再调用。
+
+Windows PowerShell 首次安装示例（将源目录替换为实际下载或克隆位置）：
+
+```powershell
+$source = (Resolve-Path -LiteralPath '<仓库目录>/project-report').Path
+$skillRoot = if ($env:CODEX_HOME) { Join-Path $env:CODEX_HOME 'skills' } else { Join-Path $env:USERPROFILE '.codex/skills' }
+$target = Join-Path $skillRoot 'project-report'
+if (Test-Path -LiteralPath $target) { throw '技能已存在，请先检查再更新。' }
+New-Item -ItemType Directory -Path $skillRoot -Force | Out-Null
+Copy-Item -LiteralPath $source -Destination $target -Recurse
+Get-Item -LiteralPath (Join-Path $target 'SKILL.md'), (Join-Path $target 'references/report.md'), (Join-Path $target 'scripts/hub.mjs')
+node --version
+node --check (Join-Path $target 'scripts/hub.mjs')
+```
+
+macOS / Linux 首次安装示例：
+
+```bash
+source_dir='<仓库目录>/project-report'
+skill_root="${CODEX_HOME:-$HOME/.codex}/skills"
+target="$skill_root/project-report"
+if [ -e "$target" ]; then
+  echo '技能已存在，请先检查再更新。'
+else
+  mkdir -p "$skill_root" && cp -R "$source_dir" "$target" &&
+    test -f "$target/SKILL.md" && test -f "$target/references/report.md" &&
+    node --version && node --check "$target/scripts/hub.mjs"
+fi
+```
+
+**安装时不需要 API Key，也不要生成 Key 或上传项目。** 用户首次调用时，说明默认服务为 `https://project.boomclaws.com`，再询问输入已有 Key 或生成新 Key。用户使用自建服务时才需要补充地址。客户端不支持加载 Skills 时，不要声称已安装成功；可说明本地脚本调用方式。
 
 ## API Key 规则
 
@@ -79,10 +122,10 @@ Key 保存在目标项目的 `.project-hub/config.json` 中，该目录会自动
 
 ```powershell
 # 自动生成 Key，保存到目标项目，并显示复制提醒
-node "<Skill目录>/scripts/hub.mjs" generate --project "<项目目录>" --url https://<服务域名>
+node "<Skill目录>/scripts/hub.mjs" generate --project "<项目目录>"
 
 # 在本机终端交互输入已有 Key
-node "<Skill目录>/scripts/hub.mjs" set --project "<项目目录>" --url https://<服务域名>
+node "<Skill目录>/scripts/hub.mjs" set --project "<项目目录>"
 
 # 获取当前项目的已有记录
 node "<Skill目录>/scripts/hub.mjs" get --project "<项目目录>"
@@ -93,7 +136,7 @@ node "<Skill目录>/scripts/hub.mjs" report --project "<项目目录>"
 
 已有配置时，脚本不会直接覆盖 Key。明确要更换时，在 `generate` 或 `set` 命令后添加 `--replace`。更换意味着切换到另一个用户的数据空间。
 
-生产服务地址必须使用 HTTPS；本地调试允许 localhost HTTP。
+省略 `--url` 时使用已有项目保存的地址；没有配置时使用 `https://project.boomclaws.com`。自建服务可以添加 `--url https://<服务域名>`。生产服务地址必须使用 HTTPS；本地调试允许 localhost HTTP。
 
 ## 上报内容与注意事项
 
