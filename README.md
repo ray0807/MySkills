@@ -12,6 +12,53 @@
 
 `project-report` 固定连接已部署的服务 [project.boomclaws.com](https://project.boomclaws.com)，无需选择或填写域名。API Key 在使用 Skill 时设置，安装时无需提供。
 
+### 让 AI 助手读取已上报的项目
+
+各项目用 `project-report` 上报后，负责安排工作的 AI 助手使用**同一个 API Key** 接入查询 MCP，即可读取全部项目。Key 建议放在环境变量 `PROJECT_HUB_API_KEY` 中，不要写进会提交到 Git 的配置文件。
+
+Cursor（`~/.cursor/mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "project-hub": {
+      "url": "https://project.boomclaws.com/mcp/query",
+      "headers": { "Authorization": "Bearer ${env:PROJECT_HUB_API_KEY}" }
+    }
+  }
+}
+```
+
+Codex（`~/.codex/config.toml`）：
+
+```toml
+[mcp_servers.project-hub]
+url = "https://project.boomclaws.com/mcp/query"
+bearer_token_env_var = "PROJECT_HUB_API_KEY"
+```
+
+其他客户端按"远程 Streamable HTTP MCP + `Authorization: Bearer <API Key>` 请求头"配置。接入后可用的工具：
+
+| 工具 | 参数 | 返回 |
+| --- | --- | --- |
+| list_projects | 无 | 全部项目详情，含进度、任务、待测试、阻塞和下一步 |
+| get_project | `id`：项目 ID | 单个项目详情 |
+| project_history | `id`；`limit`：1–100，默认 20 | 该项目最近的上报记录 |
+
+配置完成后，直接对助手说：
+
+```text
+读取我所有项目的状态，按截止时间、优先级、依赖和阻塞，帮我排今天要做的事，并单独列出需要我亲自处理的任务。
+```
+
+不支持 MCP 的客户端也可以直接请求 HTTPS 接口：
+
+```bash
+curl -H "Authorization: Bearer $PROJECT_HUB_API_KEY" https://project.boomclaws.com/api/projects
+```
+
+返回空列表通常表示使用的 Key 与上报时不同。
+
 ## 如何使用
 
 每个文件夹是一个独立 Skill，包含 `SKILL.md`，以及必要的脚本、参考资料和使用说明。
