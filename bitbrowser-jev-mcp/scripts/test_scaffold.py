@@ -168,6 +168,8 @@ class Checks(unittest.TestCase):
                     self.assertFalse(body['ready'])
                     self.assertTrue(body['step_ready'])
                     self.assertFalse(body['goal_ready'])
+                    self.assertEqual(body['missing_credentials'], ['TYPESAFE_API_KEY', 'TEXT_MODEL_API_KEY'])
+                    self.assertIn('请在本机', body['credential_setup_prompt'])
                     rejected = await session.call_tool('submit_goal', {
                         'profile_id': 'test', 'url': 'https://example.com', 'goal': 'Read page'})
                     self.assertTrue(rejected.isError)

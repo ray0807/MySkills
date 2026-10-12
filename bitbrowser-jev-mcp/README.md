@@ -178,3 +178,7 @@ AI 核验结果并选择下一步，最终 close_session(session_id)
 逐步工具目前共有 15 个，加上环境、窗口和 Jev 作业工具，总计 20 个 MCP 工具。
 
 逐步环境检查用 step_ready；goal_ready 表示 Jev 目标模式也已具备凭据。ready 保留为目标模式兼容字段，不能用它要求逐步模式填写模型密钥。
+
+## 缺少密钥时
+
+Jev 目标模式需要 TYPESAFE_API_KEY 与 TEXT_MODEL_API_KEY。环境检查会返回 missing_credentials 和配置提示；AI 只询问缺少的项目，等用户填写到本机 MCP 环境并重启服务后再执行。有效配置不重复询问，错误密钥需更新。逐步控制不使用这两个模型，因此无需为它填写 Jev 密钥。

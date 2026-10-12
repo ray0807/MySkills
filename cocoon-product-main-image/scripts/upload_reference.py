@@ -12,6 +12,10 @@ ENDPOINT = 'https://mcp.boomclaws.com/v1/point/public/upload/temp-file'
 MAX_BYTES = 20 * 1024 * 1024
 
 
+class MissingKey(ValueError):
+    pass
+
+
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise ValueError('Upload redirect rejected; credentials were not forwarded')
@@ -42,9 +46,9 @@ def multipart(data, key, boundary):
 
 
 def upload(file, opener=None):
-    key = os.environ.get('COCOON_IMAGE_KEY', '')
+    key = os.environ.get('COCOON_IMAGE_KEY', '').strip()
     if not key:
-        raise ValueError('Set COCOON_IMAGE_KEY in your local environment first')
+        raise MissingKey('请填写 Cocoon AI 图片服务 Key，配置到本机 COCOON_IMAGE_KEY 环境变量后再运行。')
     path = Path(file).resolve(strict=True)
     if not path.is_file() or not 0 < path.stat().st_size <= MAX_BYTES:
         raise ValueError('Reference must be a nonempty image, at most 20 MiB')
@@ -79,6 +83,8 @@ if __name__ == '__main__':
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(content + '\n', encoding='utf-8')
         print(content)
+    except MissingKey as error:
+        parser.exit(1, f'configuration_required: {error}\n')
     except (ValueError, OSError, HTTPError, URLError) as error:
         # Avoid printing server body/request payload, which can contain keyCode.
         parser.exit(1, f'Upload failed ({type(error).__name__}); check local configuration. No automatic retry.\n')

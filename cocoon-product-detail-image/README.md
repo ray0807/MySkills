@@ -73,3 +73,7 @@ python -X utf8 -B scripts/test_upload_reference.py
 - [SKILL.md](SKILL.md)：AI 的任务专属流程与质量要求。
 - [references/cocoon-mcp.md](references/cocoon-mcp.md)：工具字段、连接、上传、费用与异步任务处理。
 - [scripts/upload_reference.py](scripts/upload_reference.py)：本地参考图上传助手。
+
+## 缺少 Key 时
+
+AI 会提示用户填写 Cocoon AI 图片服务 Key，优先在本机私密 MCP 配置中输入，填写并验证后才继续生成。本地上传助手缺少 COCOON_IMAGE_KEY 时会明确提示配置，不发送上传请求。已有有效连接不重复索取密钥，认证失败则提示更新。

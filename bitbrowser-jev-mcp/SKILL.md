@@ -10,6 +10,8 @@ description: 使用通用 MCP 脚手架操作 BitBrowser 指纹窗口，AI agent
 ## 使用流程
 
 1. 调用 `environment_check`，根据模式检查 step_ready 或 goal_ready。默认逐步控制由外层 AI 判断，不要求 TypeSafe/文本模型密钥；委托 Jev 时才需要它们。缺依赖或窗口白名单时引导配置，不能伪报完成。只有用户要求安装时才运行安装流程；不要把激活 skill 等同于许可付费模型调用。
+   目标执行缺少 Jev 密钥时，明确询问“请填写 Jev/TypeSafe 的 TYPESAFE_API_KEY，以及执行文字输入所需的 TEXT_MODEL_API_KEY（已有配置只补缺项）”。优先引导在本机私密 MCP 环境填写；用户选择提供密钥时只用于本机连接配置，不回显到报告或源码。等待缺项配置后重启服务并重新检查，不替用户编造密钥、冒用其他服务的 Key 或先发起模型调用。凭据无效时说明认证问题并请更新，不反复重试。逐步模式不使用这两类密钥，不能因此阻断逐步控制。
+
 2. 用 `list_profiles` 查看被服务端白名单允许的窗口，按用户指定选取 profile_id。不自动创建、删除、改代理、改指纹或清 Cookie。不把账号已有登录态视为发消息、发文、购买的授权。
 3. AI 理解任务、约束和停止条件，不为不同平台添加固定业务脚本。“活跃客户”等条件用实际页面证据判断，不凭头像猜测；信息不足就标未知。已有明确目标不反复询问，无需填写行业/职位等无关业务参数。
 4. **逐步控制（默认）**：open_session 创建持久标签 → observe 获取 snapshot_id 和 actions → AI 选择 click/fill/select/scroll/wait/press_key/navigate → 再 observe 核验。仅用本次观察返回的 action_id。每个动作生成稳定 request_id；重发同一请求复用它，不换编号规避去重。一次动作消耗快照，新动作必须重新观察。遇 outcome_unknown 或 stale_or_unknown 先核验，不盲目重复。截图用 screenshot；新页用 list_tabs/switch_tab 后重新观察；可用 new_tab 保留旧页另开页面，browser_history 前进/后退。阶段之间保留同一标签状态，结束调用 close_session。
