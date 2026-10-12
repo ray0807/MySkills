@@ -1,0 +1,16 @@
+{
+  "products": [],
+  "keywords_by_language": {"en": [], "zh": []},
+  "available_certifications": [],
+  "minimum_order_quantity": null,
+  "quantity_unit": null,
+  "target_countries": [],
+  "excluded_countries": [],
+  "lead_time_days": null,
+  "supplier_origin": null,
+  "search_budget_minutes": 45,
+  "max_candidates_to_verify": 20,
+  "discovery_lookback_days": 30,
+  "data_dir": "lead-hunt-data",
+  "timezone": "Asia/Shanghai"
+}
