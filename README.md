@@ -10,6 +10,8 @@
 | --- | --- |
 | [project-report](project-report/README.md) | 整理项目进度，主动补问缺失的目标、验收和排期信息，通过 MCP 上报到项目管理中心，供 AI 助手汇总项目并安排工作。 |
 | [verified-buy-leads](verified-buy-leads/README.md) | 查找 B2B 公开采购需求，核验需求有效性、买家身份、联系方式和供货匹配，维护带更新历史的本地线索库。 |
+| [seo-content-bot](seo-content-bot/README.md) | 研究近期关键词、新闻和读者问题，创作有来源、有观点及配图的 SEO 文章，通过已授权的 HTTP MCP 发布，并支持宿主每日调度。 |
+| [bitbrowser-jev-mcp](bitbrowser-jev-mcp/README.md) | 通用指纹浏览器 MCP 脚手架：AI 观察页面并逐步控制点击、输入和标签切换，也可委托 Jev 执行阶段目标。 |
 
 `project-report` 固定连接已部署的服务 [project.boomclaws.com](https://project.boomclaws.com)，无需选择或填写域名。API Key 在使用 Skill 时设置，安装时无需提供。
 

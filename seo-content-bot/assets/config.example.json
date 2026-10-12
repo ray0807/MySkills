@@ -1,0 +1,57 @@
+{
+  "brand": {
+    "name": null,
+    "website": null,
+    "products": [],
+    "verified_claims": [],
+    "audience": null,
+    "target_market": null,
+    "language": null,
+    "voice": "专业、具体、有观点，避免模板化营销腔",
+    "cta": null
+  },
+  "editorial": {
+    "allowed_topics": [],
+    "excluded_topics": [],
+    "primary_goal": null,
+    "research_budget_minutes": 60,
+    "max_topic_candidates": 3,
+    "articles_per_run": 1,
+    "news_lookback_days": 7,
+    "word_count_target": null,
+    "internal_links": []
+  },
+  "images": {
+    "cover_required": true,
+    "body_images_target": 1,
+    "preferred_method": "auto",
+    "brand_assets_dir": null,
+    "style": null
+  },
+  "publishing": {
+    "mode": "draft",
+    "mcp_url": null,
+    "auth_env_var": null,
+    "site_id": null,
+    "category_id": null,
+    "authorization_record": null,
+    "tool_mapping": {},
+    "supports_idempotency": null,
+    "interface_type": null,
+    "http_url": null,
+    "http_method": null,
+    "api_documentation": null,
+    "auth_type": null
+  },
+  "schedule": {
+    "enabled": false,
+    "timezone": "Asia/Shanghai",
+    "local_time": null,
+    "notify_on_success": false
+  },
+  "analytics": {
+    "provider": null,
+    "connection_reference": null
+  },
+  "data_dir": "seo-bot-data"
+}
