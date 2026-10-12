@@ -12,6 +12,12 @@
 | [verified-buy-leads](verified-buy-leads/README.md) | 查找 B2B 公开采购需求，核验需求有效性、买家身份、联系方式和供货匹配，维护带更新历史的本地线索库。 |
 | [seo-content-bot](seo-content-bot/README.md) | 研究近期关键词、新闻和读者问题，创作有来源、有观点及配图的 SEO 文章，通过已授权的 HTTP MCP 发布，并支持宿主每日调度。 |
 | [bitbrowser-jev-mcp](bitbrowser-jev-mcp/README.md) | 通用指纹浏览器 MCP 脚手架：AI 观察页面并逐步控制点击、输入和标签切换，也可委托 Jev 执行阶段目标。 |
+| [cocoon-product-main-image](cocoon-product-main-image/README.md) | 商品主图：真实商品白底主图、干净展示图与商品封面，通过 Cocoon 图片 MCP 生成并核验结果。 |
+| [cocoon-product-background](cocoon-product-background/README.md) | 商品背景图：纯背景素材或已有商品图的背景替换，通过 Cocoon 图片 MCP 生成并核验结果。 |
+| [cocoon-product-local-edit](cocoon-product-local-edit/README.md) | 局部修改：指定区域换色、杂物移除和小范围细节编辑，通过 Cocoon 图片 MCP 生成并核验结果。 |
+| [cocoon-product-scene](cocoon-product-scene/README.md) | 商品场景图：使用环境、生活方式和广告场景中的商品展示，通过 Cocoon 图片 MCP 生成并核验结果。 |
+| [cocoon-product-try-on](cocoon-product-try-on/README.md) | 试穿试戴：衣服试穿、眼镜试戴和首饰佩戴的虚拟视觉展示，通过 Cocoon 图片 MCP 生成并核验结果。 |
+| [cocoon-product-detail-image](cocoon-product-detail-image/README.md) | 商品详情与卖点图：细节特写、详情页配图和基于真实资料的卖点展示，通过 Cocoon 图片 MCP 生成并核验结果。 |
 
 `project-report` 固定连接已部署的服务 [project.boomclaws.com](https://project.boomclaws.com)，无需选择或填写域名。API Key 在使用 Skill 时设置，安装时无需提供。
 
