@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from fetch_public import fetch
 from lead_store import update
+import run_state
 
 
 def sample():
@@ -47,6 +48,49 @@ class Checks(unittest.TestCase):
             with self.assertRaises(ValueError):
                 update(directory, [revised, revised])
             self.assertEqual(master.read_bytes(), before)
+
+    def test_pain_leads_require_reasoning_and_fixed_priority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pain = sample()
+            pain.update(stable_key='test:pain', need_level='pain', pain_type='seeking',
+                        pain_point='投影太暗看不清歌词',
+                        solution_pitch='投影开灯后看不清歌词 → LED 屏高亮度，开灯也清晰')
+            self.assertEqual(update(directory, [pain]), 1)
+            master = Path(directory) / 'leads.json'
+            before = master.read_bytes()
+            for change in ({'priority': 'C'}, {'pain_type': 'complaint'}, {'pain_type': None},
+                           {'solution_pitch': ' '}, {'priority': 'A'}):
+                bad = copy.deepcopy(pain)
+                bad.update(change)
+                with self.assertRaises(ValueError):
+                    update(directory, [bad])
+            self.assertEqual(master.read_bytes(), before)
+            complaint = copy.deepcopy(pain)
+            complaint.update(pain_type='complaint', priority='C')
+            self.assertEqual(update(directory, [complaint]), 1)
+
+    def test_run_window_and_deduplication(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            first = run_state.start(directory)
+            self.assertEqual(first['mode'], 'first')
+            run_state.finish(directory, first['run_started_at'], 'failed', '')
+            self.assertEqual(run_state.start(directory)['mode'], 'first')
+            run_state.finish(directory, first['run_started_at'], 'ok', '')
+            daily = run_state.start(directory)
+            self.assertEqual((daily['mode'], daily['since']), ('daily', first['run_started_at']))
+            update(directory, [sample()])
+            run_state.mark(directory, [{'source_url': 'https://forum.example.com/t/9?utm_source=x', 'outcome': 'rejected'}])
+            result = run_state.check(directory, [
+                'http://www.example.com/rfq/1/',
+                'https://forum.example.com/t/9?ref=feed',
+                'https://forum.example.com/t/10?page=2',
+                'https://forum.example.com/t/10?page=2#top',
+            ])
+            self.assertEqual(result['new'], ['https://forum.example.com/t/10?page=2'])
+            self.assertEqual(len(result['seen']), 3)
+            with self.assertRaises(ValueError):
+                run_state.mark(directory, [{'source_url': 'https://example.com/x', 'outcome': 'maybe'}])
 
     def test_http_success_empty_blocked_and_missing(self):
         class Handler(BaseHTTPRequestHandler):

@@ -1,6 +1,15 @@
 {
   "products": [],
-  "keywords_by_language": {"en": [], "zh": []},
+  "product_description": "",
+  "replaces": [],
+  "target_segments": [],
+  "keyword_plan": {
+    "explicit": {"en": []},
+    "pain_points": [],
+    "triggers": [],
+    "channel_partners": [],
+    "coverage": {}
+  },
   "available_certifications": [],
   "minimum_order_quantity": null,
   "quantity_unit": null,
@@ -10,7 +19,7 @@
   "supplier_origin": null,
   "search_budget_minutes": 45,
   "max_candidates_to_verify": 20,
-  "discovery_lookback_days": 30,
+  "first_run_lookback_days": {"explicit": 30, "pain": 365, "signal": 90},
   "data_dir": "lead-hunt-data",
   "timezone": "Asia/Shanghai"
 }

@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 ENUMS = {
-    'need_level': {'explicit', 'possible'},
+    'need_level': {'explicit', 'pain', 'possible'},
     'validity': {'open', 'closed', 'expired', 'unknown'},
     'confirmation': {'public-unconfirmed', 'buyer-confirmed'},
     'identity_confidence': {'high', 'medium', 'low', 'unknown'},
@@ -57,6 +57,15 @@ def validate(row):
         if contact.get('confidence') not in {'high', 'medium', 'low', 'unknown'}:
             raise ValueError('Invalid contact confidence')
         check_url(contact.get('source_url'))
+    if row['need_level'] == 'pain':
+        expected = {'seeking': 'B', 'complaint': 'C'}
+        if row.get('pain_type') not in expected:
+            raise ValueError('Pain leads require pain_type seeking or complaint')
+        for key in ('pain_point', 'solution_pitch'):
+            if not isinstance(row.get(key), str) or not row[key].strip():
+                raise ValueError(f'Pain leads require {key}')
+        if row['priority'] != expected[row['pain_type']]:
+            raise ValueError('Pain leads: seeking must be B, complaint must be C')
     if row['confirmation'] == 'buyer-confirmed':
         if not row.get('confirmation_evidence'):
             raise ValueError('Buyer confirmation requires evidence')
@@ -119,6 +128,7 @@ def update(data_dir, incoming):
                 stream.write(json.dumps(item, ensure_ascii=False) + '\n')
     atomic_write(master, json.dumps(rows, ensure_ascii=False, indent=2) + '\n')
     fields = ['lead_id', 'stable_key', 'buyer', 'country', 'product', 'priority',
+              'need_level', 'segment', 'pain_type', 'solution_pitch',
               'validity', 'confirmation', 'source_url', 'last_verified_at']
     fields += sorted({k for row in rows for k in row} - set(fields))
     output = io.StringIO(newline='')

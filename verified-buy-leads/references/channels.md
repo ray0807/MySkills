@@ -8,14 +8,16 @@
 
 默认只交付无需付费即可核验需求并获得可用联系路径的线索。付费聚合站、会员解锁联系人或标书的页面不进入当前可跟进清单，不引导用户付费；可追溯到免费官方原文时以原文重新核验。仅有付费页面而无法验证的结果记录为 excluded-paid，不计入有效线索数量。用户另行授权使用已有付费账号时才调整这一范围。
 
-按产品选择 Alibaba RFQ、go4WorldBusiness、Tradewheel 等采购平台，或 TED、UNGM 及目标国家官方采购门户。公开社媒与论坛作为补充。优先打开原需求；聚合网站和搜索摘要只用于发现。X 连接器不是必需依赖。
+可用的获客方法和渠道见 [strategies.md](strategies.md)：公开求购与 RFQ、政府招标、终端客户痛点社区、触发事件、进口商与渠道客户。痛点社区只读公开内容，不登录、不发帖、不私信。
 
-首次运行先选 2–3 个与产品匹配的渠道，不用每天把所有低收益渠道搜一遍。查询用当前日期与语言关键词，并正确括起 OR 表达式。不把域名搜索和当地采购资格混为一谈。
+优先打开原始页面；聚合网站和搜索摘要只用于发现。X 连接器不是必需依赖。
+
+每次运行至少覆盖一个明确需求渠道、一个痛点社区，以及一个触发事件或渠道客户方法；按 channel_runs 的产出调整频率，不用每天把所有低收益渠道搜一遍。查询用当前日期与语言关键词，并正确括起 OR 表达式。不把域名搜索和当地采购资格混为一谈。
 
 不沿用旧 HTML 正则抓取脚本：页面结构可能变化，并可能把相邻条目的日期、联系人错配。需要批量抓取时，先查看当前页面/API 官方文档与真实返回结构，再做字段映射和抽样核验。工具失败最多重试一次；429 尊重 Retry-After，超出本次预算就暂停；403、登录墙和验证码不反复重试。
 
 数据目录保存 `channel_runs.jsonl`，每次每渠道记录：
-`run_at, channel, query, status, http_status, fetched_count, verified_count, error, next_check_at`。
+`run_at, channel, query, segment, layer(explicit/pain/trigger/partner), status, http_status, fetched_count, verified_count, error, next_check_at`。
 status 为 `ok` / `empty` / `blocked` / `error` / `not-tested`。只有请求和解析成功才能记录 empty。连续三次失败可降低频率，不永久认定渠道失效；下次复查时间由失败原因与预算决定。
 
-新闻、灾害、项目投产等信号另存 `signals.jsonl`，保存来源、日期、相关产品和推断；不要推定某企业因此正在采购。
+触发事件、进口商、渠道客户和中标历史等开发名单另存 `signals.jsonl`，格式见 data.md；不要推定某企业因此正在采购。
