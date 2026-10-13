@@ -1,0 +1,4 @@
+__pycache__/
+.env
+store-check-results/
+runtime/

@@ -35,7 +35,10 @@ async function setup() {
   const projectId = existing?.projectId || basename(root).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 128) || 'project';
   await ignoreConfig();
   await mkdir(directory, { recursive: true, mode: 0o700 });
-  await writeFile(file, `${JSON.stringify({ url, apiKey: key, projectId }, null, 2)}\n`, { mode: 0o600 });
+  const autoReport = existing?.autoReport && existing.apiKey !== key
+    ? { ...existing.autoReport, enabled: false, reason: 'API Key changed; re-enable after confirming identity' }
+    : existing?.autoReport;
+  await writeFile(file, `${JSON.stringify({ ...existing, url, apiKey: key, projectId, ...(autoReport ? { autoReport } : {}) }, null, 2)}\n`, { mode: 0o600 });
   if (command === 'generate') console.log(`API Key: ${key}`);
   console.log(reminder);
   console.log(`已保存到 ${file}，可以从该文件复制。`);

@@ -1,0 +1,23 @@
+{
+  "site_url": null,
+  "production_url": null,
+  "environment": "unknown",
+  "site_type": "ecommerce",
+  "platform": "unknown",
+  "target_markets": [],
+  "currencies": [],
+  "languages": [],
+  "sales_channels": [],
+  "sample_product_urls": [],
+  "critical_urls": [],
+  "max_pages": 12,
+  "max_requests": 40,
+  "browser_viewports": [{"width": 390, "height": 844}, {"width": 1440, "height": 900}],
+  "test_order_authorized": false,
+  "test_payment_mode_verified": false,
+  "test_form_submission_authorized": false,
+  "test_recipient": null,
+  "private_connections": {},
+  "output_dir": "store-check-results",
+  "timezone": "Asia/Shanghai"
+}

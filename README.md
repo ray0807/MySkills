@@ -8,7 +8,8 @@
 
 | Skill | 用途 |
 | --- | --- |
-| [project-report](project-report/README.md) | 整理项目进度，主动补问缺失的目标、验收和排期信息，通过 MCP 上报到项目管理中心，供 AI 助手汇总项目并安排工作。 |
+| [project-report](project-report/README.md) | 整理项目进度，主动补问缺失的目标、验收和排期信息，通过 MCP 上报到项目管理中心，供 AI 助手汇总项目并安排工作；支持首次授权后的提交后自动上报。 |
+| [store-launch-checker](store-launch-checker/README.md) | 独立站上线验收：检查购买与收单履约闭环、商品、SEO、移动体验、政策、埋点与运营，按证据区分阻断项和未验证项。 |
 | [verified-buy-leads](verified-buy-leads/README.md) | 通用外贸客户查找，适合每天定时运行：输入产品后生成全面的关键词，先找明确采购需求，再找本人亲述痛点、能用你的产品解决的终端客户，并整理开发名单；每天只找新内容并去重，核验身份、联系方式和供货匹配。 |
 | [seo-content-bot](seo-content-bot/README.md) | 研究近期关键词、新闻和读者问题，创作有来源、有观点及配图的 SEO 文章，通过已授权的 HTTP MCP 发布，并支持宿主每日调度。 |
 | [bitbrowser-jev-mcp](bitbrowser-jev-mcp/README.md) | 通用指纹浏览器 MCP 脚手架：AI 观察页面并逐步控制点击、输入和标签切换，也可委托 Jev 执行阶段目标。 |

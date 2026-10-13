@@ -8,7 +8,7 @@
 - 主动补问项目目标、验收标准、截止时间、优先级、任务依赖和阻塞问题。
 - 标记需要你亲自处理的任务，以及待确认的问题。
 - 读取已有项目记录，更新完整快照并上传；管理中心同时保存上报历史。
-- 每次调用先询问新建或复用 API Key，用户选择后再继续。
+- 手动上报先选择 Key；首次授权自动模式后，每次提交复用 Key 并后台上报，无需重复问答。
 
 只整理当前项目的目标、进度与工作任务，不主动检查 GitHub、处理嵌套仓库、移动目录或清理旧部署。上报完成只给出简短结果，不展示完整 JSON 和过程日志。
 
@@ -54,7 +54,7 @@ Codex 通常使用 `~/.codex/skills/`。安装后，在目标项目的对话中�
 $project-report 帮我整理这个项目的进度，补问缺失信息并上报。
 ```
 
-每次调用都先提供“新建 Key”和“复用 Key”两个选项，不询问域名，也不在选项里展示 Key。选择复用后，再单独让你输入要复用的 Key；本机已有 Key 也不会自动代替本次输入。完成选择与配置后，再整理项目信息并上报。
+普通手动模式每次调用都先提供“新建 Key”和“复用 Key”两个选项，不询问域名，也不在选项里展示 Key。选择复用后，再单独让你输入要复用的 Key；本机已有 Key 也不会自动代替本次输入。完成选择与配置后，再整理项目信息并上报。
 
 也可以要求：
 
@@ -150,3 +150,31 @@ node "<Skill目录>/scripts/hub.mjs" report --project "<项目目录>"
 每次上传是完整快照，同一项目 ID 会替换当前记录。Skill 会先读取旧记录，保留仍有效的信息；查询失败时不会直接当作新项目覆盖。上传成功后才会报告完成，失败时保留本地快照供重试。
 
 完整执行流程见 [SKILL.md](SKILL.md)。
+
+## 提交后自动上报
+
+首次确认仓库与 Key 并启用后，每次 Git commit 自动入队、后台上传。提交失败重试记录只表示上报状态，不影响已经创建的代码提交。未知人工状态留待确认，不弹窗询问，也不把提交当作测试或任务完成。
+
+所有命令只需要 Node.js，无 npm 依赖：
+
+```powershell
+node "<Skill目录>/scripts/auto-report.mjs" enable --project "<仓库根目录>"
+node "<Skill目录>/scripts/auto-report.mjs" prepare --project "<仓库根目录>" --input "<仓库根目录>/.project-hub/summary-input.json"
+node "<Skill目录>/scripts/auto-report.mjs" status --project "<仓库根目录>"
+node "<Skill目录>/scripts/auto-report.mjs" retry --project "<仓库根目录>"
+node "<Skill目录>/scripts/auto-report.mjs" disable --project "<仓库根目录>"
+```
+
+启用前配置 Key 并保存首次项目 report.json；已有服务记录优先合并。prepare 在代码暂存后执行，绑定下一次提交的内容。摘要输入格式、已有钩子接入、队列与对账说明见 [automatic.md](references/automatic.md)。已有 post-commit/core.hooksPath 不会被覆盖。
+
+钩子不会自动启动 AI 模型理解代码。AI 客户端使用本 skill 时，在提交前保存摘要；没有匹配摘要只记录 Git 编号、时间、标题、分支和文件名，不改变旧任务与测试结论。原始 diff、密钥和作者邮箱不上传。运行数据保存在 Git 忽略的 .project-hub。
+
+更换 Key 暂停自动模式，旧队列不自动迁移。后台失败留队列，下次提交或 retry 重试；每次最多 20 条积压。disable 保留钩子与队列。移动 skill 目录后需更新钩子路径。客户端跳过 hooks 时不会自动触发。
+
+离线验证命令：
+
+```powershell
+node --test "<Skill目录>/scripts/test-auto-report.mjs"
+```
+
+测试在临时仓库使用模拟服务，验证真实钩子入队、摘要绑定、已有钩子保留、失败重试、丢响应对账与旧任务保护，不向正式服务发送测试数据。PROJECT_REPORT_QUEUE_ONLY=1 使钩子仅入队不联网，适合本地验证；显式 retry 仍会上报。
