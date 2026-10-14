@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, basename } from 'node:path';
+import { homedir } from 'node:os';
 import { createInterface } from 'node:readline/promises';
 
 const reminder = '请立即复制并保存这个 API Key；其他项目和工作安排助手使用同一个 Key。换 Key 就换用户，旧数据不会迁移。';
@@ -10,10 +11,18 @@ const root = resolve(option('--project') || process.cwd());
 const directory = resolve(root, '.project-hub');
 const file = resolve(directory, 'config.json');
 const defaultUrl = 'https://project.boomclaws.com';
+const globalDirectory = resolve(process.env.PROJECT_HUB_HOME || resolve(homedir(), '.project-hub'));
+const globalFile = resolve(globalDirectory, 'last-key.json');
 
-async function readConfig() {
-  try { return JSON.parse(await readFile(file, 'utf8')); }
+async function readJson(path) {
+  try { return JSON.parse(await readFile(path, 'utf8')); }
   catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+}
+const readConfig = () => readJson(file);
+const keyValid = key => typeof key === 'string' && key.length >= 24 && key.length <= 256 && /^[\x21-\x7e]+$/.test(key);
+async function rememberKey(key) {
+  await mkdir(globalDirectory, { recursive: true, mode: 0o700 });
+  await writeFile(globalFile, `${JSON.stringify({ apiKey: key, savedAt: new Date().toISOString(), project: root }, null, 2)}\n`, { mode: 0o600 });
 }
 async function ignoreConfig() {
   const ignore = resolve(root, '.gitignore');
@@ -23,15 +32,19 @@ async function ignoreConfig() {
 }
 async function setup() {
   const existing = await readConfig();
-  if (existing && !args.includes('--replace')) throw new Error('已有 Key；明确更换时才使用 --replace。换 Key 就换用户，旧数据不会迁移。');
+  if (existing && command !== 'reuse' && !args.includes('--replace')) throw new Error('已有 Key；明确更换时才使用 --replace。换 Key 就换用户，旧数据不会迁移。');
   const url = defaultUrl;
   let key;
   if (command === 'generate') key = randomBytes(32).toString('base64url');
-  else {
+  else if (command === 'reuse') {
+    key = (await readJson(globalFile))?.apiKey;
+    if (!keyValid(key)) key = existing?.apiKey;
+    if (!keyValid(key)) throw new Error('本机还没有保存过 API Key，请输入要复用的 Key（set）或生成新 Key（generate）');
+  } else {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    try { key = await rl.question('请输入已有 API Key（仅在本机终端输入）：'); } finally { rl.close(); }
+    try { key = (await rl.question('请输入已有 API Key（仅在本机终端输入）：')).trim(); } finally { rl.close(); }
   }
-  if (!key || key.length < 24 || key.length > 256 || !/^[\x21-\x7e]+$/.test(key)) throw new Error('Key 必须为 24–256 个不含空格的可打印 ASCII 字符');
+  if (!keyValid(key)) throw new Error('Key 必须为 24–256 个不含空格的可打印 ASCII 字符');
   const projectId = existing?.projectId || basename(root).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 128) || 'project';
   await ignoreConfig();
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -39,7 +52,9 @@ async function setup() {
     ? { ...existing.autoReport, enabled: false, reason: 'API Key changed; re-enable after confirming identity' }
     : existing?.autoReport;
   await writeFile(file, `${JSON.stringify({ ...existing, url, apiKey: key, projectId, ...(autoReport ? { autoReport } : {}) }, null, 2)}\n`, { mode: 0o600 });
-  if (command === 'generate') console.log(`API Key: ${key}`);
+  await rememberKey(key);
+  if (command !== 'set') console.log(`API Key: ${key}`);
+  if (existing?.apiKey && existing.apiKey !== key) console.log('注意：本项目原 Key 已更换。');
   console.log(reminder);
   console.log(`已保存到 ${file}，可以从该文件复制。`);
 }
@@ -79,7 +94,7 @@ async function invoke() {
 }
 try {
   if (args.includes('--url') && option('--url') !== defaultUrl) throw new Error(`服务地址固定为 ${defaultUrl}，无需设置域名`);
-  if (['generate', 'set'].includes(command)) await setup();
+  if (['generate', 'set', 'reuse'].includes(command)) await setup();
   else if (['get', 'report'].includes(command)) await invoke();
-  else throw new Error('用法：hub.mjs generate|set|get|report --project <目录> [--replace]');
+  else throw new Error('用法：hub.mjs generate|set|reuse|get|report --project <目录> [--replace]');
 } catch (e) { console.error(e.message); process.exitCode = 1; }
