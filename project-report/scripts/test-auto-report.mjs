@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, readdir } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { enable, disable, prepare, enqueue, flush, merge, status, validateSummary } from './auto-report.mjs';
 
 const key = 'offline-test-key-at-least-24-characters';
@@ -127,10 +128,11 @@ test('automatic summary rejects fabricated progress and malformed fields', () =>
 test('reusing key preserves auto mode; changing key pauses it and does not migrate queued events', async () => fixture(async root => {
   await enable(root);
   await enqueue(root, false);
-  const helper = resolve('skills/project-report/scripts/hub.mjs');
-  execFileSync(process.execPath, [helper, 'set', '--replace', '--project', root], { input: key + '\n', encoding: 'utf8', windowsHide: true });
+  const helper = fileURLToPath(new URL('./hub.mjs', import.meta.url));
+  const env = { ...process.env, PROJECT_HUB_HOME: join(root, '.project-hub/home') };
+  execFileSync(process.execPath, [helper, 'set', '--replace', '--project', root], { input: key + '\n', encoding: 'utf8', windowsHide: true, env });
   assert.equal((await status(root)).enabled, true);
-  execFileSync(process.execPath, [helper, 'set', '--replace', '--project', root], { input: 'changed-offline-test-key-24-characters\n', encoding: 'utf8', windowsHide: true });
+  execFileSync(process.execPath, [helper, 'set', '--replace', '--project', root], { input: 'changed-offline-test-key-24-characters\n', encoding: 'utf8', windowsHide: true, env });
   assert.equal((await status(root)).enabled, false);
   await enable(root);
   let networkCalled = false;
