@@ -32,8 +32,8 @@
   "max_candidates_to_verify": 20,
   "first_run_lookback_days": {
     "explicit": 30,
-    "pain": 365,
-    "signal": 90
+    "pain": 30,
+    "signal": 30
   },
   "data_dir": "lead-hunt-data",
   "timezone": "Asia/Shanghai",
@@ -66,6 +66,15 @@
     "min_unique_results": 5,
     "usable_target_ratio": 0.8,
     "retry_with_broad_query": true,
-    "use_existing_alternatives_only": true
+    "use_existing_alternatives_only": true,
+    "distinguish_engine_and_access_mode": true,
+    "browser_serp_fallback": true,
+    "prefer_current_session_verified_route": true
+  },
+  "open_search_result_pages": true,
+  "time_policy": {
+    "max_post_age_days": 30,
+    "overlap_hours": 24,
+    "catchup_days": 7
   }
 }

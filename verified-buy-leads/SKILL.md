@@ -21,11 +21,11 @@ description: 根据产品或关键词，优先搜索 Facebook、Instagram、YouT
 
 ## 搜索渠道预检
 
-正式搜客户前按 [search-check.md](references/search-check.md) 小样本检查当前工具是否真实执行 site:：看实际结果 URL 的目标域命中，不仅看工具成功/摘要；Facebook、Instagram、YouTube 分别验证。空结果不能判渠道坏或无客户；用宽松对照复测后，异常就切换已有可用搜索来源，不要求用户接接口。可用 search_probe.py 离线统计；检查只证明链接发现，不代表能读原帖。内部记录预检结果，对用户仍只交付客户名单.csv。
+正式搜客户前按 [search-check.md](references/search-check.md) 小样本检查当前工具是否真实执行 site:：看实际结果 URL 的目标域命中，不仅看工具成功/摘要；Facebook、Instagram、YouTube 分别验证。空结果不能判渠道坏或无客户；用宽松对照复测后，异常就切换已有可用搜索来源，不要求用户接接口。内置搜索零结果或 HTTP 抓取为空壳时，有现成浏览器就实测浏览器内 Google 等搜索结果页；当前环境已验证更有效的 browser-serp 路线优先。打开搜索结果页允许，open_source_pages=false 仅限制目标原帖。已获授权的检索切换路线后直接继续，不反复询问是否重跑。可用 search_probe.py 离线统计；检查只证明链接发现，不代表能读原帖。内部记录预检结果，对用户仍只交付客户名单.csv。
 
 ## 默认渠道：免费社媒优先
 
-先读 [channels.md](references/channels.md) 的工具能力检查和渠道准入。先盘点当前宿主真实可用的搜索能力和可选浏览权限，再选路线：已验证社媒连接器 → 已授权站内浏览 → 定向网页发现。仅有网页搜索时照常收录相关链接和摘要，明确未读原帖/评论，不强制补工具或账号。重点找 Facebook 公开群组/帖子/评论、YouTube 评论及作者需求、Instagram 帖子/Reels/评论，再按产品拓展 Reddit、行业论坛、LinkedIn、X、Threads、TikTok。群组、视频、博主或供应商账号可作为发现入口保存，不当作有需求的客户；发现具体需求帖/评论时优先保存其定位链接。
+先读 [channels.md](references/channels.md) 的工具能力检查和渠道准入。先盘点当前宿主真实可用的搜索能力和可选浏览权限，按实测选择路线：已有浏览器搜索结果页（browser-serp）、专用搜索或内置搜索；不固定内置搜索优先。社媒原帖浏览仍是另行要求的可选核验。仅有网页搜索时照常收录相关链接和摘要，明确未读原帖/评论，不强制补工具或账号。重点找 Facebook 公开群组/帖子/评论、YouTube 评论及作者需求、Instagram 帖子/Reels/评论，再按产品拓展 Reddit、行业论坛、LinkedIn、X、Threads、TikTok。群组、视频、博主或供应商账号可作为发现入口保存，不当作有需求的客户；发现具体需求帖/评论时优先保存其定位链接。
 
 默认排除阿里国际站及类似 B2B 交易平台、采购线索库、付费聚合站，哪怕某一条 RFQ 可免费看、声称免费注册或存在公开联系方式也不作为客户交付。域名表见 [source-policy.json](assets/source-policy.json)，未列域名按实际类型识别，不能只查黑名单。旧配置、历史记录和查询计划不应继续调用被排除渠道；本规则优先于旧版渠道建议。没有结果时报告真实覆盖及限制，不回退 B2B 凑数。
 
@@ -44,6 +44,12 @@ description: 根据产品或关键词，优先搜索 Facebook、Instagram、YouT
 读 [keywords.md](references/keywords.md) 和 [queries.md](references/queries.md)。保留 12 维检查，但按产品适用性填充，不强行编造十种客户或七种语言。默认 coverage-first：先展开产品别名/子品类、适用场景、买方口语、替代方案痛点及目标市场语言，按“词族 × 意图 × 场景 × 语言 × 平台 × 入口类型”建立覆盖清单和 query_cells。需求词直搜与讨论入口→评论/回复反查均须规划，不能只搜 need/buy 或只看第一页。按 keywords.md 建 keyword_plan.json，逐项记录不适用理由、分页停止原因、扩词队列和未查分支；简短展示后执行，不额外等待确认。
 
 Facebook、Instagram、TikTok、YouTube、X、Threads、LinkedIn、Reddit/论坛都是候选。按产品、可用工具和预算轮换，不强求每轮跑全；未能读取的评论区不能称已覆盖。不假定存在 social.search/browser.search；按 [channels.md](references/channels.md) 和 [strategies.md](references/strategies.md) 使用实际工具。Facebook、Instagram、YouTube 是本用户优先渠道，分别建立独立查询队列，不因某次零结果而默认全转 Reddit；执行 channels.md 的多轮查询和翻页规则。
+
+## 每日三次：时间过滤与增量
+
+按 [time-windows.md](references/time-windows.md) 执行。每次 start 取 search_since/search_until，不把发现时间当发布日期。默认首次近30天，后续以上次成功开始时间重叠24小时，当天首轮另补查近7天。每个失败/未完成查询用自己的旧窗口补查，不能被全局时间跳过。同 URL 跨轮去重；旧记录新证据可更新，不当新客户。每天三次由用户现有触发，不擅自设置时间点或新建自动化。
+
+客户名单.csv 增加“时效”：日期未知/待确认保留但不称新需求，可靠证据超过30天仅留内部台账、不进默认当前名单。搜索时间控件/摘要不是原帖时间核验，未知不猜。
 
 ## 增量检索与主动调整
 

@@ -8,10 +8,11 @@ finish  Record a completed run; the next daily window starts from its start time
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from lead_store import check_time, check_url
+from time_policy import policy
 
 TRACKING = {'fbclid', 'gclid', 'mc_cid', 'mc_eid', 'ref_src', 'igshid', 'si'}
 OUTCOMES = {'lead', 'signal', 'rejected'}
@@ -59,13 +60,25 @@ def seen_urls(directory):
     return seen
 
 
-def start(directory):
-    now = datetime.now(timezone.utc)
+def start(directory, now=None):
+    now = now or datetime.now(timezone.utc)
+    settings = policy(directory)
+    oldest = now - timedelta(days=settings['max_post_age_days'])
     completed = [r for r in read_jsonl(directory / 'runs.jsonl') if r.get('status') == 'ok']
     if not completed:
-        return {'mode': 'first', 'since': None, 'run_started_at': now.isoformat()}
+        return {'mode': 'first', 'since': None, 'search_since': oldest.isoformat(),
+                'search_until': now.isoformat(), 'run_started_at': now.isoformat(),
+                'max_post_age_days': settings['max_post_age_days'], 'catchup_required': True}
     last = max(completed, key=lambda r: datetime.fromisoformat(r['run_started_at'].replace('Z', '+00:00')))
-    return {'mode': 'daily', 'since': last['run_started_at'], 'run_started_at': now.isoformat()}
+    checkpoint = datetime.fromisoformat(last['run_started_at'].replace('Z', '+00:00'))
+    search_since = max(oldest, checkpoint - timedelta(hours=settings['overlap_hours']))
+    local_zone = timezone(timedelta(hours=8))  # Current workflow: Asia/Shanghai.
+    catchup = not any(datetime.fromisoformat(r['run_started_at'].replace('Z', '+00:00')).astimezone(local_zone).date() == now.astimezone(local_zone).date()
+                      for r in completed)
+    return {'mode': 'daily', 'since': last['run_started_at'], 'search_since': search_since.isoformat(),
+            'search_until': now.isoformat(), 'run_started_at': now.isoformat(),
+            'max_post_age_days': settings['max_post_age_days'], 'catchup_required': catchup,
+            'catchup_since': max(oldest, now - timedelta(days=settings['catchup_days'])).isoformat()}
 
 
 def check(directory, urls):

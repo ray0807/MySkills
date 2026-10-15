@@ -7,6 +7,7 @@ from pathlib import Path
 from lead_store import atomic_write, record_status
 from run_state import normalize
 from source_policy import excluded_reason
+from time_policy import freshness, policy
 
 
 def export_customers(data_dir):
@@ -42,11 +43,16 @@ def export_customers(data_dir):
                         row[field] = next((raw[label] for label in labels if raw.get(label)), '')
                 sources.append((path.name, row))
     indexed = {}
+    time_settings = policy(directory)
     for filename, row in sources:
         url = row.get('source_url', '')
         if not url or excluded_reason(row):
             continue
         key = normalize(url)
+        time_status = freshness(row, max_days=time_settings['max_post_age_days'])
+        if time_status == '超期历史':
+            indexed[key] = (100, None)
+            continue
         if row.get('validity') in {'closed', 'expired'} or row.get('fit') == 'mismatch':
             # The later reviewed record supersedes a stale discovery at the same URL.
             indexed[key] = (100, None)
@@ -60,6 +66,7 @@ def export_customers(data_dir):
             '产品': row.get('product', ''), '标题或需求摘要': text or row.get('title', ''),
             '链接': key, '状态': '已核验可跟进' if reviewed else '待核验',
             '发布日期': row.get('published_at', ''),
+            '时效': time_status,
             '发现时间': row.get('first_found_at') or row.get('found_at') or row.get('first_seen_at', ''),
             '搜索词': row.get('query') or row.get('keyword') or '',
             '备注': '原帖、时效及联系权限未核验' if filename == 'candidates.json' else row.get('next_step', '历史待核验记录'),
@@ -77,7 +84,7 @@ def export_customers(data_dir):
                     result[field] = value
         indexed[key] = (rank, result)
     rows = [row for rank, row in sorted(indexed.values(), key=lambda item: -item[0]) if row]
-    fields = ['类型', '客户或作者', '产品', '标题或需求摘要', '链接', '状态', '发布日期', '发现时间', '搜索词', '备注']
+    fields = ['类型', '客户或作者', '产品', '标题或需求摘要', '链接', '状态', '发布日期', '时效', '发现时间', '搜索词', '备注']
     output = io.StringIO(newline='')
     writer = csv.DictWriter(output, fieldnames=fields)
     writer.writeheader()

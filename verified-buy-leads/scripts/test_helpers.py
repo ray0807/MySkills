@@ -13,6 +13,8 @@ from source_policy import source_kind
 import run_state
 from candidate_store import update_candidates
 from search_probe import assess
+from time_policy import freshness
+from datetime import datetime, timezone
 
 
 def sample():
@@ -333,6 +335,46 @@ class Checks(unittest.TestCase):
             self.assertEqual(export_customers(raw), 3)
             with (Path(raw) / '客户名单.csv').open(encoding='utf-8-sig', newline='') as stream:
                 self.assertEqual(len(list(csv.DictReader(stream))), 3)
+
+    def test_freshness_does_not_confuse_discovery_and_publication(self):
+        now = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+        self.assertEqual(freshness(dict(found_at=now.isoformat()), now), '日期未知')
+        self.assertEqual(freshness(dict(published_at='2 years ago', found_at=now.isoformat()), now), '超期历史')
+        self.assertEqual(freshness(dict(published_at='11个月前', found_at=now.isoformat()), now), '超期历史')
+        self.assertEqual(freshness(dict(published_at='2 hours ago', found_at=now.isoformat()), now), '近期（搜索显示）')
+        self.assertEqual(freshness(dict(published_at='1 month ago', found_at=now.isoformat()), now), '日期待确认')
+        self.assertEqual(freshness(dict(published_at='2020-01-01'), now), '超期历史')
+        self.assertEqual(freshness(dict(published_at_iso='2026-10-14T12:00:00Z'), now), '近期（未核验）')
+
+    def test_three_runs_use_overlap_and_partial_does_not_advance(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            now = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+            first = run_state.start(directory, now)
+            self.assertEqual(first['search_since'], '2026-09-15T12:00:00+00:00')
+            run_state.finish(directory, '2026-10-15T01:00:00Z', 'ok', '')
+            incremental = run_state.start(directory, now)
+            self.assertEqual(incremental['search_since'], '2026-10-14T01:00:00+00:00')
+            self.assertFalse(incremental['catchup_required'])
+            run_state.finish(directory, '2026-10-15T08:00:00Z', 'partial', '')
+            self.assertEqual(run_state.start(directory, now)['since'], '2026-10-15T01:00:00Z')
+            tomorrow = datetime(2026, 10, 16, 12, tzinfo=timezone.utc)
+            self.assertTrue(run_state.start(directory, tomorrow)['catchup_required'])
+
+    def test_old_posts_stay_in_audit_but_not_current_list(self):
+        with tempfile.TemporaryDirectory() as raw:
+            base = dict(source_url='https://www.facebook.com/posts/old', product='goggles',
+                        query='site:facebook.com goggles', found_at=datetime.now(timezone.utc).isoformat(),
+                        evidence_mode='search-snippet', excerpt='Looking for goggles', published_at='2 years ago')
+            unknown = dict(base, source_url='https://www.facebook.com/posts/unknown', published_at='')
+            update_candidates(raw, [base, unknown])
+            with (Path(raw) / '客户名单.csv').open(encoding='utf-8-sig', newline='') as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]['时效'], '日期未知')
+            audit = json.loads((Path(raw) / 'candidates.json').read_text(encoding='utf-8'))
+            self.assertEqual(len(audit), 2)
+            self.assertEqual(audit[0]['published_observed_at'], base['found_at'])
 
     def test_http_success_empty_blocked_and_missing(self):
         class Handler(BaseHTTPRequestHandler):

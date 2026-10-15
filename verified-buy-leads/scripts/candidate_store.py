@@ -15,6 +15,9 @@ def validate_candidate(row):
         raise ValueError('Candidate must be an object')
     check_url(row.get('source_url'))
     check_time(row.get('found_at'))
+    for key in ('published_at_iso', 'published_observed_at'):
+        if row.get(key):
+            check_time(row[key])
     for key in ('product', 'query'):
         if not isinstance(row.get(key), str) or not row[key].strip():
             raise ValueError(f'{key} is required')
@@ -54,6 +57,11 @@ def update_candidates(data_dir, incoming, diagnostics=False):
         old = indexed.get(key, {})
         row = dict(old)
         row.update(raw)
+        if raw.get('published_at'):
+            row['published_observed_at'] = raw.get('published_observed_at') or raw['found_at']
+        elif old.get('published_at'):
+            row['published_at'] = old['published_at']
+            row['published_observed_at'] = old.get('published_observed_at') or old['found_at']
         # Rediscovering a bare URL must not erase earlier text evidence.
         if old.get('excerpt') and not raw.get('excerpt'):
             row['excerpt'] = old['excerpt']
