@@ -193,6 +193,8 @@ def update(data_dir, incoming):
                 safe[key] = value
             writer.writerow(safe)
         atomic_write(directory / filename, output.getvalue(), 'utf-8-sig')
+    from customer_list import export_customers
+    export_customers(directory)
     return len(rows)
 
 

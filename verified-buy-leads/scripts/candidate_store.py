@@ -37,7 +37,7 @@ def category(row):
     return 'candidate' if row.get('excerpt', '').strip() else 'discovery'
 
 
-def update_candidates(data_dir, incoming):
+def update_candidates(data_dir, incoming, diagnostics=False):
     if not isinstance(incoming, list):
         raise ValueError('Input must be an array')
     directory = Path(data_dir)
@@ -86,6 +86,8 @@ def update_candidates(data_dir, incoming):
     fields += sorted({key for row in rows for key in row} - set(fields))
     for status, filename in [('candidate', 'candidate-links.csv'), ('discovery', 'discovery-links.csv'),
                              ('excluded', 'excluded-candidates.csv')]:
+        if not diagnostics:
+            continue
         output = io.StringIO(newline='')
         writer = csv.DictWriter(output, fieldnames=fields)
         writer.writeheader()
@@ -101,6 +103,8 @@ def update_candidates(data_dir, incoming):
                 safe[key] = value
             writer.writerow(safe)
         atomic_write(directory / filename, output.getvalue(), 'utf-8-sig')
+    from customer_list import export_customers
+    export_customers(directory)
     return {status: sum(row['record_status'] == status for row in rows)
             for status in ('candidate', 'discovery', 'excluded')}
 
@@ -109,9 +113,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', required=True)
     parser.add_argument('--input', help='JSON array of search discoveries; omit to rebuild exports')
+    parser.add_argument('--diagnostics', action='store_true', help='Also export internal category CSVs')
     args = parser.parse_args()
     try:
         incoming = json.loads(Path(args.input).read_text(encoding='utf-8-sig')) if args.input else []
-        print(json.dumps(update_candidates(args.data_dir, incoming), ensure_ascii=False))
+        print(json.dumps(update_candidates(args.data_dir, incoming, args.diagnostics), ensure_ascii=False))
     except (ValueError, TypeError, KeyError, OSError) as error:
         parser.exit(1, f'Candidate store failed: {error}\n')

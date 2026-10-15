@@ -57,5 +57,7 @@
   "search_mode": "coverage-first",
   "collection_mode": "link-first",
   "open_source_pages": false,
-  "require_api_setup": false
+  "require_api_setup": false,
+  "user_output": "客户名单.csv",
+  "diagnostic_exports": false
 }

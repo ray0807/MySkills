@@ -15,7 +15,7 @@ description: 根据产品或关键词，优先搜索 Facebook、Instagram、YouT
 - 只有相关链接，没有需求文本：discovery，发现入口；群组、视频、账号可先保存，但不计作有需求的客户。不得虚构摘录填库。
 - 用户要求核验且证据满足：使用原有 leads.json / leads.csv，不把候选复制过去自动升级。
 
-候选与入口按 [data.md](references/data.md) 用 candidate_store.py 保存，默认交付 candidate-links.csv 与 discovery-links.csv，即使可跟进客户为零也要交付已发现链接。所有未读记录标 unverified，需求状态、身份和联系权限 unknown；发现时间与帖子时间分开，作者未知留空。B2B/付费排除规则保持。
+候选与入口按 [data.md](references/data.md) 用 candidate_store.py 保存，默认只交付一份 客户名单.csv，表内用类型和状态区分需求线索、发现入口及核验状态，即使可跟进客户为零也要交付已发现链接。所有未读记录标 unverified，需求状态、身份和联系权限 unknown；发现时间与帖子时间分开，作者未知留空。B2B/付费排除规则保持。
 
 ## 默认渠道：免费社媒优先
 
@@ -37,7 +37,7 @@ description: 根据产品或关键词，优先搜索 Facebook、Instagram、YouT
 
 读 [keywords.md](references/keywords.md) 和 [queries.md](references/queries.md)。保留 12 维检查，但按产品适用性填充，不强行编造十种客户或七种语言。默认 coverage-first：先展开产品别名/子品类、适用场景、买方口语、替代方案痛点及目标市场语言，按“词族 × 意图 × 场景 × 语言 × 平台 × 入口类型”建立覆盖清单和 query_cells。需求词直搜与讨论入口→评论/回复反查均须规划，不能只搜 need/buy 或只看第一页。按 keywords.md 建 keyword_plan.json，逐项记录不适用理由、分页停止原因、扩词队列和未查分支；简短展示后执行，不额外等待确认。
 
-Facebook、Instagram、TikTok、YouTube、X、Threads、LinkedIn、Reddit/论坛都是候选。按产品、可用工具和预算轮换，不强求每轮跑全；未能读取的评论区不能称已覆盖。不假定存在 social.search/browser.search；按 [channels.md](references/channels.md) 和 [strategies.md](references/strategies.md) 使用实际工具。
+Facebook、Instagram、TikTok、YouTube、X、Threads、LinkedIn、Reddit/论坛都是候选。按产品、可用工具和预算轮换，不强求每轮跑全；未能读取的评论区不能称已覆盖。不假定存在 social.search/browser.search；按 [channels.md](references/channels.md) 和 [strategies.md](references/strategies.md) 使用实际工具。Facebook、Instagram、YouTube 是本用户优先渠道，分别建立独立查询队列，不因某次零结果而默认全转 Reddit；执行 channels.md 的多轮查询和翻页规则。
 
 ## 增量检索与主动调整
 
@@ -61,9 +61,9 @@ Facebook、Instagram、TikTok、YouTube、X、Threads、LinkedIn、Reddit/论坛
 
 ## 存储与交付
 
-按 [data.md](references/data.md) 写库：默认 candidates.json 保存发现记录，candidate-links.csv 为有相关文本的待核验线索，discovery-links.csv 为仅链接入口，excluded-candidates.csv 为排除项；可选核验库中，leads.json 是完整审查台账；leads.csv 只导出可跟进；review.csv 是 possible、免费路径/供货待核验；history.csv 是关闭、过期或不匹配；excluded.csv 单独保留 B2B/付费排除记录，只在报告中汇总排除数量及原因，不展示为客户候选。signals.jsonl 单列招聘/项目/渠道名单，不计需求。
+按 [data.md](references/data.md) 写库：默认 candidates.json 保存内部发现记录，只向用户交付客户名单.csv，合并历史 leads.json/review.csv 待核验记录并按 URL 去重；旧记录本轮没重新找到也应保留。candidate/discovery/excluded 等内部分类不拆成多个交付文件，分类 CSV 仅显式 --diagnostics 导出；可选核验库中，leads.json 是完整审查台账；leads.csv 只导出可跟进；review.csv 是 possible、免费路径/供货待核验；history.csv 是关闭、过期或不匹配；excluded.csv 单独保留 B2B/付费排除记录，只在报告中汇总排除数量及原因，不展示为客户候选。signals.jsonl 单列招聘/项目/渠道名单，不计需求。
 
-默认报告先给待核验链接和发现入口，明确“未打开原帖”；若另做核验，再列可跟进 A→B→C。分别报告发现条数、候选条数与已核验条数，不用“0 条客户”掩盖链接收录结果。报告给窗口/预算、原话、买家角色、购买/租赁/服务意图、日期、状态、匹配、原帖/具体评论定位、免费路径的实际操作入口及账号前提、缺口与下一步；痛点附有条件的方案解释。待核验/信号/历史变化分别计数，附适用分支总数、完成/待执行/部分/受限数量、实际读取原帖与评论数量、平台/语言/词族覆盖和未完成组合。默认以 scope=link-discovery 的链接搜索分支计算本轮覆盖；content-verification 单独记录为可选核验，未读评论不冒充已读，也不因未做核验使链接收集失败。12 维准备齐不等于搜齐；只有约定发现分支全部执行并完成遗漏检查才称本轮矩阵完成。“找全”只指约定矩阵完成，不承诺全网所有买家。
+默认报告只链接客户名单.csv，简述新增及累计条数，不向用户罗列内部文件或重复要求浏览器授权。表内标待核验链接和发现入口，明确“未打开原帖”；若另做核验，再列可跟进 A→B→C。分别报告发现条数、候选条数与已核验条数，不用“0 条客户”掩盖链接收录结果。报告给窗口/预算、原话、买家角色、购买/租赁/服务意图、日期、状态、匹配、原帖/具体评论定位、免费路径的实际操作入口及账号前提、缺口与下一步；痛点附有条件的方案解释。待核验/信号/历史变化分别计数，附适用分支总数、完成/待执行/部分/受限数量、实际读取原帖与评论数量、平台/语言/词族覆盖和未完成组合。默认以 scope=link-discovery 的链接搜索分支计算本轮覆盖；content-verification 单独记录为可选核验，未读评论不冒充已读，也不因未做核验使链接收集失败。12 维准备齐不等于搜齐；只有约定发现分支全部执行并完成遗漏检查才称本轮矩阵完成。“找全”只指约定矩阵完成，不承诺全网所有买家。
 
 零新增可短报，但渠道失败、访问限制和需要用户处理的事项不能隐藏。附件中的高产/失效结论属于其他产品、时间和环境的经验，不继承为当前事实。
 

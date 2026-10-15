@@ -1,3 +1,11 @@
+# 用户交付优先规则
+
+默认唯一交付为 客户名单.csv（UTF-8 BOM），由 customer_list.py 合并 candidates.json 与 leads.json；无 leads.json 时兼容旧 review.csv/leads.csv。按规范化 URL 去重，有需求文本/已核验信息优先，旧待核验记录不会因本轮未新增而消失。排除 B2B/付费、关闭/过期/不匹配。只有相关入口也可列入同表，但类型=发现入口，不算有需求客户。状态在列中表示，不让用户理解内部文件分类。
+
+candidate_store.py 默认入库后自动更新这份表，不再生成分区 CSV。--diagnostics 才额外生成下文的内部诊断导出。lead_store.py 仍兼容原有内部导出，并自动刷新统一表；内部文件默认不向用户罗列。已有分区文件保留，不擅自删除历史数据。可运行 `python scripts/customer_list.py --data-dir <目录>` 单独汇总旧数据。
+
+列：类型、客户或作者、产品、标题或需求摘要、链接、状态、发布日期、发现时间、搜索词、备注。累计总数与本轮新增分开；未知字段留空，不推断身份或发布日期。
+
 # 默认链接收录库：无需打开目标页面
 
 默认 link-first 使用 candidates.json，与下文的可选核验库 leads.json 分开。不会为满足旧库 need_excerpt/last_verified_at 要求伪造原文或核验时间。

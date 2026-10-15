@@ -1,55 +1,47 @@
-# 通用客户需求查找：先收录链接，后核验
+# 通用客户名单查找
 
-输入任意产品或关键词，优先搜索 Facebook、Instagram、YouTube 等免费社媒，扩展场景、买家表达和当地语言，保存相关链接。**默认不打开原帖、不读取目标网页，也不要求用户配置接口、API Key 或第三方爬虫。** 登录墙不会阻止链接入库。
+输入产品或关键词，AI 扩展场景、买家表达和当地语言，优先搜索 Facebook、Instagram、YouTube 等免费社媒。默认只收录搜索实际返回的链接和摘要，不必打开原帖，不需要配置接口、Key 或授权登录。
 
 ## 怎么用
 
-将整个 skill 文件夹更新到你的 agent 的 skills 目录，然后说：
+更新整个 skill 文件夹后，对 agent 说：
 
-> 用 verified-buy-leads 找工业除湿机的客户线索，尽量覆盖不同场景和语言。先记录链接，不用打开帖子。
+> 帮我找 LED screen 的客户，重点 Facebook、Instagram、YouTube，覆盖不同场景和语言，只给我一份客户名单，不用打开原帖。
 
-也可输入“包装托盘”“宠物胸背带”等关键词；没给主题才询问。其他国家、规格、MOQ 等未知先留空，不需要填长表。不同产品用独立数据目录。
+产品可以替换为任意产品；只有没给主题或有关键歧义时才询问。数据按产品分目录保存。
 
-Skill 使用宿主已有搜索工具；没有专用 social.search 也可以用网页 site: 定向搜索。它不会自动获得社媒内部或私密群搜索能力，也不能保证搜索引擎收录了所有帖子。没有真实搜索结果时不编造链接。
+## 只看一份客户名单.csv
 
-## 默认交付什么
-
-| 文件 | 内容 |
+| 列 | 内容 |
 | --- | --- |
-| candidate-links.csv | 有相关需求摘要/索引文本的待核验线索；原帖未读 |
-| discovery-links.csv | 只有相关链接的发现入口，例如群组、视频、账号；不计作有需求的客户 |
-| candidates.json | 完整发现台账，按 URL 去重 |
-| excluded-candidates.csv | B2B 平台、付费线索排除记录，不当客户推荐 |
-| leads.csv | 只有另行核验后符合条件的可跟进客户 |
+| 类型 | 需求线索 / 发现入口 |
+| 客户或作者 | 实际搜索返回信息，未知留空 |
+| 产品、标题或需求摘要 | 可见的真实文字，不伪造原文 |
+| 链接 | 点击后由你自行查看 |
+| 状态 | 待核验 / 已核验可跟进 |
+| 发布日期、发现时间 | 分开记录，不相互冒充 |
+| 搜索词、备注 | 来源及未核实事项 |
 
-记录链接、实际搜索词、产品、发现时间、工具名，以及真实返回的标题、需求摘要、作者和发布日期。没有的字段留空，发现时间不能冒充发帖时间。摘要、索引文本、仅链接分别标 search-snippet/indexed-text/link-only，统一标“未核验”。
+本轮发现和历史待核验自动合并、去重；旧的 Reddit 等记录不会因为没在本轮重新找到而消失。有相关需求摘要的记需求线索；只有相关群组、视频、账号链接的记发现入口，不当作已确认采购客户。B2B 平台、付费线索及明确结束/不匹配的记录不进名单。
 
-例如报告可以是：“发现 30 个链接：12 条带相关需求摘要、18 个讨论入口；原帖均未打开，已核验客户 0。”不能把它简化成“找不到客户”，也不能把 30 个链接说成 30 位确认采购客户。
+## Facebook / Instagram 搜不到怎么办
 
-阿里国际站、Made-in-China、TradeKey 等 B2B 平台及付费聚合站继续排除；免费社媒需要登录不能直接推定它收费，不因无法打开而丢弃相关链接。只看到卖家广告、点赞或泛泛互动，不算需求摘要，可留作相关讨论入口。
+先分开试产品别名、当地叫法、场景、痛点和口语求助，再试相关群组/帖子/视频入口；不要只跑一条长英文精确查询就全部转 Reddit。支持分页就继续翻页，不支持时用不同查询拓展，并如实说明搜索能力限制。关键词与未查队列会保存，下次可继续。
 
-## 尽量减少漏搜
+Skill 不会凭空获得社媒内部索引，搜索引擎也不覆盖所有帖子。搜索无结果与原帖打不开不同：前者继续改查询，后者不阻止保存已有链接。不会保证一定找到 Facebook/Instagram 客户，更不会编造名单。
 
-默认 coverage-first：先建立产品别名/子品类、场景、买方口语、痛点、替代方案和目标市场语言，保存 keyword_plan.json。规划需求词直搜与相关群组/评测/教程入口两条路线，从真实结果滚动补词。
+默认不因“要核实原帖”而要求浏览器授权；只有你明确要求深入核验时，才在可用能力范围核验。不会自动私信、评论、加群，也不自行新建定时任务。
 
-45 分钟/20 条候选是单批预算，未完成查询保存队列及恢复位置。默认覆盖率仅计算链接发现范围；没有读取评论要明说，但不因未做原帖核验就把已完成的链接收集算失败。访问/查询未完成仍 partial，不承诺全网零遗漏，不自行建立定时任务。
+## 本地维护
 
-## 可选：后续核验
-
-只有用户要求“帮我核验这些线索”时，再尝试读取原帖、评论、身份、时效、供货匹配及免费联系路径。没有读取能力就保留待核验状态，不强迫用户申请接口。公开求购不是买家已回复确认，采购/租赁/服务意图要分清。
-
-核验库导出 review.csv（缺证据）、history.csv（关闭/过期/不匹配）、excluded.csv（排除项），leads.json 保留核验台账，history.jsonl 保存更新前版本。收录脚本不会自动将候选升级成核验客户。搜索、收录和读取均不授权发消息、评论或加群。
-
-## 本地辅助脚本
-
-Python 3.10+，仅标准库。从本 skill 目录执行：
+Python 3.10+，标准库，无额外依赖：
 
 ```sh
 python scripts/candidate_store.py --data-dir ./lead-hunt-data/product-a --input ./search-results.json
-python scripts/run_state.py check --data-dir ./lead-hunt-data/product-a --input ./candidate-urls.json
+python scripts/customer_list.py --data-dir ./lead-hunt-data/product-a
 python -B scripts/test_helpers.py
 ```
 
-search-results.json 为搜索发现数组，完整例子见 [data.md](references/data.md)。脚本不联网，不独立搜索，不需要 API Key。CSV 使用 UTF-8 BOM，方便 Excel 打开；重新收录相同链接不会增加重复行，只有链接的记录不会覆盖以前保存的需求摘要。原有 run_state 与 lead_store 脚本继续用于增量状态和可选核验库。
+第一个命令收录并刷新统一名单，第二个只汇总已有记录。输入结构见 [data.md](references/data.md)。JSON、查询队列和历史分区是内部状态，不需要用户逐个查看；旧数据保留，默认不新增分区 CSV，只有 --diagnostics 导出诊断分类表。
 
-配置模板见 [config.example.json](assets/config.example.json)，默认 collection_mode=link-first、open_source_pages=false、require_api_setup=false，由 agent 读取执行。[SKILL.md](SKILL.md) 为工作规则，[keywords.md](references/keywords.md) 为覆盖计划，[channels.md](references/channels.md) 为渠道准入。请同步整个文件夹，包含 scripts 和 assets，避免只更新说明而沿用旧规则。
+规则见 [SKILL.md](SKILL.md)，覆盖方法见 [keywords.md](references/keywords.md)，社媒查询与访问限制见 [channels.md](references/channels.md)。其他 agent 使用时请同步整个文件夹，包括 scripts 和 assets。

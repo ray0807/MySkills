@@ -231,7 +231,7 @@ class Checks(unittest.TestCase):
                          product=base['product'], query='site:youtube.com warehouse',
                          found_at=base['found_at'], evidence_mode='link-only')
             paid = dict(base, source_url='https://rfq.alibaba.com/1')
-            self.assertEqual(update_candidates(raw, [base, entry, paid]),
+            self.assertEqual(update_candidates(raw, [base, entry, paid], diagnostics=True),
                              dict(candidate=1, discovery=1, excluded=1))
             rows = json.loads((directory / 'candidates.json').read_text(encoding='utf-8'))
             self.assertTrue(all(r['verification'] == 'unverified' and r['validity'] == 'unknown'
@@ -241,7 +241,7 @@ class Checks(unittest.TestCase):
             # A tracking variant and weaker re-discovery must retain the text without duplicates.
             weaker = dict(base, source_url=base['source_url'].replace('utm_source=x', 'utm_source=y'),
                           evidence_mode='link-only', excerpt='')
-            self.assertEqual(update_candidates(raw, [weaker])['candidate'], 1)
+            self.assertEqual(update_candidates(raw, [weaker], diagnostics=True)['candidate'], 1)
             current = json.loads((directory / 'candidates.json').read_text(encoding='utf-8'))
             self.assertEqual(len(current), 3)
             self.assertEqual(current[0]['excerpt'], base['excerpt'])
@@ -256,7 +256,7 @@ class Checks(unittest.TestCase):
             row = dict(source_url='https://www.instagram.com/p/test/', product='harness',
                        query='site:instagram.com harness', found_at='2026-10-15T12:00:00Z',
                        evidence_mode='link-only', title='=HYPERLINK("bad")')
-            update_candidates(raw, [row])
+            update_candidates(raw, [row], diagnostics=True)
             master = Path(raw) / 'candidates.json'
             before = master.read_bytes()
             for change in [dict(evidence_mode='search-snippet'), dict(source_url='javascript:alert(1)'),
@@ -266,6 +266,28 @@ class Checks(unittest.TestCase):
                 self.assertEqual(master.read_bytes(), before)
             with (Path(raw) / 'discovery-links.csv').open(encoding='utf-8-sig', newline='') as stream:
                 self.assertTrue(next(csv.DictReader(stream))['title'].startswith("'="))
+
+    def test_one_customer_list_includes_old_review_and_deduplicates(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            old = sample()
+            update(raw, [old])
+            discovered = dict(source_url=old['source_url'] + '?utm_source=x', product=old['product'],
+                              query='site:reddit.com goggles', found_at='2026-10-15T12:00:00Z',
+                              evidence_mode='search-snippet', excerpt='Need goggles')
+            update_candidates(raw, [discovered])
+            with (directory / '客户名单.csv').open(encoding='utf-8-sig', newline='') as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]['状态'], '待核验')
+            self.assertFalse((directory / 'candidate-links.csv').exists())
+            self.assertFalse((directory / 'discovery-links.csv').exists())
+            # Also recover a legacy review.csv when its JSON master is unavailable.
+            (directory / 'leads.json').unlink()
+            from customer_list import export_customers
+            export_customers(directory)
+            with (directory / '客户名单.csv').open(encoding='utf-8-sig', newline='') as stream:
+                self.assertEqual(len(list(csv.DictReader(stream))), 1)
 
     def test_http_success_empty_blocked_and_missing(self):
         class Handler(BaseHTTPRequestHandler):
