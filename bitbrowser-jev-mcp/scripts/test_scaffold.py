@@ -161,7 +161,7 @@ class Checks(unittest.TestCase):
                                      {'environment_check', 'list_profiles', 'submit_goal', 'get_job', 'cancel_job',
                                       'open_session', 'observe', 'click', 'fill', 'select', 'scroll', 'wait',
                                       'navigate', 'press_key', 'list_tabs', 'switch_tab', 'screenshot', 'close_session',
-                                      'new_tab', 'browser_history'})
+                                      'new_tab', 'browser_history', 'read_page'})
                     result = await session.call_tool('environment_check', {})
                     self.assertFalse(result.isError)
                     body = json.loads(result.content[0].text)
@@ -265,6 +265,53 @@ class Checks(unittest.TestCase):
         closed = [c[1]['targetId'] for c in calls if c[0] == 'Target.closeTarget']
         self.assertEqual(set(closed), {'owned', 'new'})
         self.assertEqual(manager.close(sid)['status'], 'already_closed')
+
+    def test_read_page_scrolls_dedupes_and_stops(self):
+        class Browser:
+            target = 'owned'
+            session = 's1'
+            y = 0
+            screens = ['Header\nReview A', 'Review A\nReview B', 'Review B\nFooter']
+            sent = []
+
+            def observe(self, screenshot=False):
+                index = min(self.y // 500, 2)
+                return {'url': 'https://example.com/p', 'title': 'P', 'text': self.screens[index],
+                        'scroll': {'y': min(self.y, 1000), 'height': 1600},
+                        'actions': [{'id': 'e1', 'kind': 'click'},
+                                    {'id': 'scroll_up', 'kind': 'scroll', 'delta': -560},
+                                    {'id': 'scroll_down', 'kind': 'scroll', 'delta': 500}]}
+
+            def act(self, action, page, text=None):
+                if not self.sent:
+                    self.sent.append('stale')
+                    raise ValueError('Page changed')
+                self.sent.append(action['id'])
+                self.y += action['delta']
+
+        class Connection:
+            def __call__(self, method, **params):
+                return {}
+
+            def close(self):
+                pass
+
+        browser = Browser()
+        manager = Sessions(SimpleNamespace(allowed={'p'}), lambda *args: (browser, Connection(), ValueError))
+        sid = manager.open('p', 'https://example.com/p')['session_id']
+        snapshot = manager.observe(sid)['snapshot_id']
+        result = manager.read_page(sid)
+        self.assertEqual(result['text'], 'Header\nReview A\nReview B\nFooter')
+        self.assertTrue(result['end_reached'])
+        self.assertFalse(result['truncated'])
+        self.assertEqual(browser.sent[0], 'stale')
+        self.assertEqual(set(browser.sent[1:]), {'scroll_down'})
+        with self.assertRaises(ValueError):
+            manager.act(sid, snapshot, 'e1', 'click', 'r1')
+        browser.y = 0
+        self.assertEqual(manager.read_page(sid, max_scrolls=0)['scrolls'], 0)
+        with self.assertRaises(ValueError):
+            manager.read_page(sid, max_scrolls=500)
 
     def test_manual_unknown_outcome_is_never_replayed(self):
         class Stale(ValueError):

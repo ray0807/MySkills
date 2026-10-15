@@ -90,6 +90,11 @@ def main():
         return sessions.observe(session_id)
 
     @mcp.tool()
+    def read_page(session_id: str, max_scrolls: int = 30, max_chars: int = 60000) -> dict:
+        """Scroll down and return deduplicated page text (reviews, lists). Read-only; observe again before acting."""
+        return sessions.read_page(session_id, max_scrolls, max_chars)
+
+    @mcp.tool()
     def click(session_id: str, snapshot_id: str, action_id: str, request_id: str) -> dict:
         """Click an observed click action. Stable request_id prevents duplicate execution."""
         return sessions.act(session_id, snapshot_id, action_id, 'click', request_id)

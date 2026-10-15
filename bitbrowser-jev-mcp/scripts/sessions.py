@@ -72,6 +72,53 @@ class Sessions:
                     **{k: page.get(k) for k in ('url', 'title', 'text', 'actions', 'scroll', 'omitted_actions')},
                     'limits': ['visible top-level DOM only', 'iframe/shadow DOM not supported']}
 
+    def read_page(self, session_id, max_scrolls=30, max_chars=60000):
+        """Scroll downward and return deduplicated visible text; only scroll inputs are sent."""
+        if not 0 <= max_scrolls <= 100 or not 1000 <= max_chars <= 200000:
+            raise ValueError('max_scrolls must be 0–100 and max_chars 1000–200000')
+        with self.lock:
+            record = self._record(session_id)
+            browser = record['browser']
+            lines, seen, positions = [], set(), []
+            page, end_reached, size, scrolls, stale = None, False, 0, 0, 0
+            for step in range(max_scrolls + 1):
+                page = browser.observe(screenshot=False)
+                for line in (page.get('text') or '').splitlines():
+                    if line.strip() and line not in seen:
+                        seen.add(line)
+                        lines.append(line)
+                        size += len(line) + 1
+                position = (page.get('scroll') or {}).get('y')
+                if size >= max_chars:
+                    break
+                if position is not None and position in positions:
+                    end_reached = True
+                    break
+                positions.append(position)
+                down = next((a for a in page['actions'] if a['kind'] == 'scroll' and a.get('delta', 0) > 0), None)
+                if not down:
+                    end_reached = True
+                    break
+                if step == max_scrolls:
+                    break
+                try:
+                    browser.act(down, page)
+                    scrolls += 1
+                    stale = 0
+                except record['stale_class']:
+                    positions.pop()
+                    stale += 1
+                    if stale > 5:
+                        break
+            record['snapshot'] = None
+            text = '\n'.join(lines)
+            return {'session_id': session_id, 'url': page.get('url'), 'title': page.get('title'),
+                    'text': text[:max_chars], 'truncated': size >= max_chars,
+                    'scrolls': scrolls, 'end_reached': end_reached,
+                    'next_step': 'observe before any further action',
+                    'limits': ['visible top-level DOM only', 'iframe/shadow DOM not supported',
+                               'lazy content may need wait/observe']}
+
     def _mutation(self, session_id, snapshot_id, request_id, signature, perform):
         if not isinstance(request_id, str) or not 1 <= len(request_id) <= 128:
             raise ValueError('Supply a stable request_id (1–128 characters) for every mutation')
