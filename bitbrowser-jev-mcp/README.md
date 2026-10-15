@@ -125,7 +125,7 @@ MCP 地址：`http://127.0.0.1:8767/mcp`。这是 MCP 协议服务，不能按�
 | `cancel_job` | job_id；请求取消，当前模型/动作结束后生效 |
 | `open_session` | profile_id、url；建立跨步骤保留状态的标签，不要求执行器模型密钥 |
 | `observe` | session_id；返回可见文字、动作列表和 snapshot_id |
-| `read_page` | session_id；可选 max_scrolls=30、max_chars=60000；向下滚动并返回去重后的整页文字（评论、列表），只发送滚动，结束后须重新 observe |
+| `read_page` | session_id；可选 max_scrolls=30、max_chars=60000；向下滚动并返回去重后的整页文字（评论、列表），只发送滚动，结束后须重新 observe。到底前等待懒加载两轮；返回 page_height、height_grew，高度不增长说明后续内容可能未渲染 |
 | `click` / `select` / `scroll` | session_id、snapshot_id、action_id、request_id；执行对应观察动作 |
 | `fill` | 同上，加 text；输入由 AI 提供 |
 | `wait` | session_id、snapshot_id、request_id；短暂等待后再次观察 |
@@ -160,7 +160,7 @@ MCP 地址：`http://127.0.0.1:8767/mcp`。这是 MCP 协议服务，不能按�
 
 离线检查涵盖本机地址限制、模拟 BitBrowser API、窗口白名单、单作业排他与取消、实际 Jev 模块隔离及仅关闭自建标签、真实 Jev Agent 在模拟策略下的完成证据。没有付费模型调用，也不打开真实用户窗口。
 
-另外覆盖 stdio 与 Streamable HTTP 的真实 MCP 握手、工具发现及配置缺失拒绝执行。当前共 11 项测试（含拟人节奏：分段滚动、点击前鼠标轨迹、逐字输入及关闭开关）；测试 HTTP 服务只临时绑定本机随机端口，完成后退出。
+另外覆盖 stdio 与 Streamable HTTP 的真实 MCP 握手、工具发现及配置缺失拒绝执行。当前共 12 项测试（含拟人节奏：分段滚动、点击前鼠标轨迹、逐字输入及关闭开关；动态文字页面的导航判定、滚轮被吞时的脚本滚动补救和最小化窗口恢复）；测试 HTTP 服务只临时绑定本机随机端口，完成后退出。
 
 真实联调仍需用户提供允许的窗口 ID；目标模式还需模型配置，在测试页面执行点击/输入/下拉等目标，确认真实 API 返回结构和浏览器兼容性。未完成该联调前，不宣称已验证生产网页自动化。
 
@@ -189,6 +189,13 @@ Jev 目标模式需要 TYPESAFE_API_KEY 与 TEXT_MODEL_API_KEY。环境检查会
 ### 2026-10-15 本机实测
 
 在独立 BitBrowser 测试配置中，通过真实 stdio MCP 验证观察、输入、重复请求去重、点击、页面结果、截图、新建与切换标签及状态保留。修复了后台标签接受 CDP 输入但实际未生效的问题：任务标签在初始化及动作前激活。自建测试标签清理成功，配置窗口保留。本轮未调用付费模型，Jev 目标模式尚未完成真实模型验证。此结果不代表所有网站均已验证。
+
+### 2026-10-15 Facebook 实测问题与处理
+
+- 上游对非点击动作比对整页 marker（含前 6000 字可见文字）。Facebook 有视频计时、在线状态等实时文字，navigate、wait、scroll 会一直被判页面已变化。现在只有 click/select/fill 比对目标元素；navigate、wait、scroll、press_key、history、new_tab 比对 page_key（文档来源、URL、滚动位置、视口与表单值），不受实时文字影响。若仍被拒，可 observe 后直接点击目标链接换页。
+- 滚轮落在视频上会被吞：滚动前选取不在 video/iframe/canvas/内部滚动区上的点，滚后核对 scrollY，未移动则用脚本平滑滚动补救，结果中 script_scroll_fallback=true。
+- 群组 Discussion 等懒加载区域在窗口最小化、被遮挡或页面失焦时不渲染，页面高度停住，只读到骨架。打开会话时会恢复最小化窗口并启用焦点模拟、生命周期 active；read_page 到底前等待懒加载两轮。仍无法强制被遮挡窗口渲染：运行时保持 BitBrowser 窗口可见且不被其他窗口覆盖；height_grew=false 且内容只有骨架时如实报告未读取，不当作无内容。
+- 以上修复已通过离线测试，尚需在 Facebook 真实页面复测。
 
 ### 2026-10-15 亚马逊评论调研实测
 

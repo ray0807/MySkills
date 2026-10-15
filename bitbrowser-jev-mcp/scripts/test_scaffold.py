@@ -115,7 +115,8 @@ class Checks(unittest.TestCase):
         browser.close()
         self.assertIs(second.cdp, original)
         self.assertEqual([p for m, p in calls if m == 'Target.closeTarget'], [{'targetId': 'owned-tab'}])
-        self.assertFalse(any(m.startswith('Emulation.') for m, p in calls))
+        self.assertEqual([m for m, p in calls if m.startswith('Emulation.')], ['Emulation.setFocusEmulationEnabled'])
+        self.assertFalse(any(m == 'Browser.setWindowBounds' for m, p in calls))
         self.assertNotIn('Browser.close', [m for m, p in calls])
 
     def test_human_pacing_scroll_mouse_and_typing(self):
@@ -164,6 +165,58 @@ class Checks(unittest.TestCase):
             browser.act({'id': 'e2', 'kind': 'fill', 'node': 2, 'rect': rect}, {}, text='fast')
             self.assertEqual(delegated[-1], ('fill', 'fast'))
             self.assertFalse([m for m, p in calls if m in {'Input.insertText', 'Input.dispatchMouseEvent'}])
+        finally:
+            jev_bridge.time.sleep = original_sleep
+            if original_env is None:
+                os.environ.pop('BITBROWSER_PACING', None)
+            else:
+                os.environ['BITBROWSER_PACING'] = original_env
+
+    def test_live_text_freshness_wheel_fallback_and_unminimize(self):
+        import jev_ultrafast
+        import jev_bridge
+        upstream = load_isolated(jev_ultrafast, 'browser')
+        calls, state = [], {'key': ['origin', 'https://facebook.com', 0, 0, 1000, 700, []], 'y': 0}
+
+        def connection(method, session_id=None, **params):
+            calls.append((method, params))
+            if method == 'Target.createTarget':
+                return {'targetId': 'owned-tab'}
+            if method == 'Target.attachToTarget':
+                return {'sessionId': 'session'}
+            if method == 'Browser.getWindowForTarget':
+                return {'windowId': 7, 'bounds': {'windowState': 'minimized'}}
+            if method == 'Runtime.evaluate':
+                expression = params['expression']
+                if expression == jev_bridge.PAGE_KEY:
+                    return {'result': {'value': state['key']}}
+                if expression == jev_bridge.SCROLL_POINT:
+                    return {'result': {'value': [500, 400]}}
+                if expression == 'scrollY':
+                    return {'result': {'value': state['y']}}
+                if expression.startswith('window.scrollBy'):
+                    state['y'] += 560
+                return {'result': {'value': 'complete'}}
+            return {}
+
+        original_sleep, original_env = jev_bridge.time.sleep, os.environ.get('BITBROWSER_PACING')
+        jev_bridge.time.sleep = lambda seconds: None
+        try:
+            os.environ['BITBROWSER_PACING'] = 'off'
+            browser = browser_class(upstream, connection)('https://facebook.com')
+            self.assertIn(('Browser.setWindowBounds', {'windowId': 7, 'bounds': {'windowState': 'normal'}}), calls)
+            page = {'page_key': list(state['key']), 'marker': ['video 0:12']}
+            self.assertTrue(browser.fresh(page))
+            self.assertTrue(browser.fresh(page, {'kind': 'wait'}))
+            state['key'][3] = 300
+            self.assertFalse(browser.fresh(page))
+            state['key'][3] = 0
+            calls.clear()
+            result = browser.act({'id': 'scroll_down', 'kind': 'scroll', 'delta': 560}, page)
+            self.assertTrue(result['script_scroll_fallback'])
+            wheels = [p for m, p in calls if m == 'Input.dispatchMouseEvent' and p['type'] == 'mouseWheel']
+            self.assertTrue(wheels and all((p['x'], p['y']) == (500, 400) for p in wheels))
+            self.assertEqual(state['y'], 560)
         finally:
             jev_bridge.time.sleep = original_sleep
             if original_env is None:
@@ -351,6 +404,7 @@ class Checks(unittest.TestCase):
 
         browser = Browser()
         manager = Sessions(SimpleNamespace(allowed={'p'}), lambda *args: (browser, Connection(), ValueError))
+        manager.lazy_wait_seconds = 0
         sid = manager.open('p', 'https://example.com/p')['session_id']
         snapshot = manager.observe(sid)['snapshot_id']
         result = manager.read_page(sid)

@@ -1,6 +1,7 @@
 """Persistent observed-element execution for an external planning agent."""
 import base64
 import threading
+import time
 import uuid
 from urllib.parse import urlparse
 from datetime import datetime, timezone
@@ -21,6 +22,9 @@ def web_url(url):
 
 
 class Sessions:
+    lazy_waits = 2
+    lazy_wait_seconds = 2.5
+
     def __init__(self, api, factory=None):
         self.api = api
         self.factory = factory or self._factory
@@ -79,9 +83,10 @@ class Sessions:
         with self.lock:
             record = self._record(session_id)
             browser = record['browser']
-            lines, seen, positions = [], set(), []
-            page, end_reached, size, scrolls, stale = None, False, 0, 0, 0
-            for step in range(max_scrolls + 1):
+            lines, seen = [], set()
+            page, end_reached, size, scrolls, stale, waits = None, False, 0, 0, 0, 0
+            last_position, heights = None, []
+            while True:
                 page = browser.observe(screenshot=False)
                 for line in (page.get('text') or '').splitlines():
                     if line.strip() and line not in seen:
@@ -89,32 +94,42 @@ class Sessions:
                         lines.append(line)
                         size += len(line) + 1
                 position = (page.get('scroll') or {}).get('y')
+                height = (page.get('scroll') or {}).get('height')
+                heights.append(height)
                 if size >= max_chars:
                     break
-                if position is not None and position in positions:
-                    end_reached = True
-                    break
-                positions.append(position)
                 down = next((a for a in page['actions'] if a['kind'] == 'scroll' and a.get('delta', 0) > 0), None)
-                if not down:
-                    end_reached = True
+                stuck = not down or (scrolls and position is not None and position == last_position)
+                if stuck:
+                    # Give lazy feeds time to append content before declaring the end.
+                    if waits >= self.lazy_waits:
+                        end_reached = True
+                        break
+                    waits += 1
+                    time.sleep(self.lazy_wait_seconds)
+                    if not down:
+                        continue
+                else:
+                    waits = 0
+                if scrolls >= max_scrolls:
                     break
-                if step == max_scrolls:
-                    break
+                last_position = position
                 try:
                     browser.act(down, page)
                     scrolls += 1
                     stale = 0
                 except record['stale_class']:
-                    positions.pop()
                     stale += 1
                     if stale > 5:
                         break
             record['snapshot'] = None
             text = '\n'.join(lines)
+            known = [h for h in heights if isinstance(h, (int, float))]
             return {'session_id': session_id, 'url': page.get('url'), 'title': page.get('title'),
                     'text': text[:max_chars], 'truncated': size >= max_chars,
                     'scrolls': scrolls, 'end_reached': end_reached,
+                    'page_height': known[-1] if known else None,
+                    'height_grew': bool(known) and known[-1] > known[0],
                     'next_step': 'observe before any further action',
                     'limits': ['visible top-level DOM only', 'iframe/shadow DOM not supported',
                                'lazy content may need wait/observe']}

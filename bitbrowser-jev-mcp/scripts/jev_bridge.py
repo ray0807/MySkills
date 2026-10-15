@@ -23,6 +23,26 @@ def pause(low, high):
         time.sleep(random.uniform(low, high))
 
 
+PAGE_KEY = '(() => window.__jevFast ? window.__jevFast.pageKey() : null)()'
+
+# Pick a viewport point whose wheel events reach the document: avoid media/embeds and inner scrollers.
+SCROLL_POINT = '''(() => {
+  for (let i = 0; i < 24; i++) {
+    const x = innerWidth * (0.2 + Math.random() * 0.6), y = innerHeight * (0.25 + Math.random() * 0.55);
+    const e = document.elementFromPoint(x, y);
+    if (!e || e.closest('video,iframe,canvas,embed,object,[role="slider"],[role="dialog"]')) continue;
+    let p = e, inner = false;
+    while (p && p !== document.body && p !== document.documentElement) {
+      const s = getComputedStyle(p);
+      if (/(auto|scroll)/.test(s.overflowY) && p.scrollHeight > p.clientHeight + 2) { inner = true; break; }
+      p = p.parentElement;
+    }
+    if (!inner) return [x, y];
+  }
+  return [innerWidth / 2, innerHeight / 2];
+})()'''
+
+
 def load_isolated(package, filename):
     name = f'jev_ultrafast._bit_{filename}_{uuid.uuid4().hex}'
     spec = importlib.util.spec_from_file_location(name, Path(package.__file__).parent / f'{filename}.py')
@@ -45,6 +65,7 @@ def browser_class(upstream, connection):
                 # Activate only the test/task tab, never change the profile fingerprint.
                 connection('Target.activateTarget', targetId=self.target)
                 self.call('Page.bringToFront')
+                self._keep_rendering()
                 # Preserve BitBrowser fingerprint/viewport; no metrics, UA or proxy overrides.
                 self.call('Page.navigate', url=url)
                 deadline = time.monotonic() + 15
@@ -58,15 +79,43 @@ def browser_class(upstream, connection):
 
         mouse = None
 
+        def _keep_rendering(self):
+            # Lazy feeds stall when the window is minimized or the page thinks it lost focus.
+            for method, params in (('Emulation.setFocusEmulationEnabled', {'enabled': True}),
+                                   ('Page.setWebLifecycleState', {'state': 'active'})):
+                try:
+                    self.call(method, **params)
+                except Exception:
+                    pass
+            try:
+                window = connection('Browser.getWindowForTarget', targetId=self.target)
+                if window.get('bounds', {}).get('windowState') == 'minimized':
+                    connection('Browser.setWindowBounds', windowId=window['windowId'], bounds={'windowState': 'normal'})
+            except Exception:
+                pass
+
+        def fresh(self, page, action=None):
+            # Live text (video timers, presence) changes the full marker constantly; only content-bound
+            # actions compare the target element, others compare document identity, URL, scroll and forms.
+            kind = action['kind'] if action else None
+            if kind in {'click', 'select'}:
+                return super().fresh(page, action)
+            if kind == 'fill':
+                return super().fresh(page, dict(action, kind='click'))
+            if not page.get('page_key'):
+                return super().fresh(page, action)
+            return self.evaluate(PAGE_KEY) == page['page_key']
+
         def act(self, action, page, text=None):
             connection('Target.activateTarget', targetId=self.target)
             self.call('Page.bringToFront')
             kind = action['kind']
+            if kind == 'scroll':
+                pause(0.6, 1.8)
+                return self._smooth_scroll(action, page)
             if not pacing_enabled() or kind == 'wait':
                 return super().act(action, page, text=text)
             pause(0.6, 1.8)
-            if kind == 'scroll':
-                return self._smooth_scroll(action, page)
             rect = action.get('rect')
             if rect and rect.get('w') and rect.get('h') and self.fresh(page, action):
                 self._move_to(rect['x'] + rect['w'] * random.uniform(0.3, 0.7),
@@ -100,18 +149,26 @@ def browser_class(upstream, connection):
         def _smooth_scroll(self, action, page):
             if not self.fresh(page, action):
                 raise upstream.StalePage('Page changed since this decision. Observe again.')
-            size = self.evaluate('[innerWidth, innerHeight]') or [1100, 760]
-            x = self.mouse[0] if self.mouse else size[0] * random.uniform(0.35, 0.65)
-            y = self.mouse[1] if self.mouse else size[1] * random.uniform(0.4, 0.7)
+            x, y = self.evaluate(SCROLL_POINT) or [550, 400]
+            if pacing_enabled():
+                self._move_to(x, y)
+                pause(0.1, 0.3)
+            before = self.evaluate('scrollY')
             remaining, sign = abs(action['delta']), 1 if action['delta'] > 0 else -1
             while remaining > 0:
                 step = min(remaining, random.randint(60, 140))
                 self.call('Input.dispatchMouseEvent', type='mouseWheel', x=x, y=y, deltaX=0, deltaY=sign * step)
                 remaining -= step
-                time.sleep(random.uniform(0.03, 0.11))
+                pause(0.03, 0.11)
+            time.sleep(0.3)
+            after = self.evaluate('scrollY')
+            fallback = isinstance(before, (int, float)) and isinstance(after, (int, float)) and abs(after - before) < 5
+            if fallback:
+                self.evaluate(f'window.scrollBy({{top: {int(action["delta"])}, behavior: "smooth"}})')
+                time.sleep(0.5)
             self.after_input = action
             pause(0.8, 2.2)
-            return {'executed': action['id']}
+            return {'executed': action['id'], 'script_scroll_fallback': fallback}
 
         def close(self):
             if self.target:
