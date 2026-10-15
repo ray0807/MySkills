@@ -12,6 +12,7 @@ from lead_store import update, validate, record_status
 from source_policy import source_kind
 import run_state
 from candidate_store import update_candidates
+from search_probe import assess
 
 
 def sample():
@@ -25,7 +26,7 @@ def sample():
 class Checks(unittest.TestCase):
     def test_initialize_upsert_and_reject_without_mutation(self):
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(update(directory, []), 0)
+            self.assertEqual(update(directory, [], diagnostics=True), 0)
             self.assertEqual(update(directory, [sample()]), 1)
             master = Path(directory) / 'leads.json'
             first = json.loads(master.read_text(encoding='utf-8'))[0]
@@ -123,7 +124,7 @@ class Checks(unittest.TestCase):
                 row = copy.deepcopy(base)
                 row.update(changes, stable_key=f'test:{number+2}')
                 records.append(row)
-            update(directory, records)
+            update(directory, records, diagnostics=True)
             def count(name):
                 with (directory / name).open(encoding='utf-8-sig', newline='') as stream:
                     return len(list(csv.DictReader(stream)))
@@ -133,7 +134,7 @@ class Checks(unittest.TestCase):
             legacy = copy.deepcopy(active)
             legacy.pop('contact_path_evidence')
             (directory / 'leads.json').write_text(json.dumps([legacy]), encoding='utf-8')
-            update(directory, [])
+            update(directory, [], diagnostics=True)
             self.assertEqual(count('leads.csv'), 0)
             self.assertEqual(count('review.csv'), 1)
 
@@ -167,7 +168,7 @@ class Checks(unittest.TestCase):
         other.update(source_url='https://alibaba.com.example.org/topic', source_kind='forum')
         self.assertEqual(source_kind(other), 'forum')
         with tempfile.TemporaryDirectory() as raw:
-            update(raw, records)
+            update(raw, records, diagnostics=True)
             def rows(name):
                 with (Path(raw) / name).open(encoding='utf-8-sig', newline='') as stream:
                     return list(csv.DictReader(stream))
@@ -178,7 +179,7 @@ class Checks(unittest.TestCase):
             old = copy.deepcopy(records[1])
             old.update(priority='A', validity='open', identity_confidence='high', fit='matched')
             (Path(raw) / 'leads.json').write_text(json.dumps([old]), encoding='utf-8')
-            update(raw, [])
+            update(raw, [], diagnostics=True)
             self.assertEqual(rows('leads.csv'), [])
             self.assertEqual(len(rows('excluded.csv')), 1)
 
@@ -271,7 +272,7 @@ class Checks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             directory = Path(raw)
             old = sample()
-            update(raw, [old])
+            update(raw, [old], diagnostics=True)
             discovered = dict(source_url=old['source_url'] + '?utm_source=x', product=old['product'],
                               query='site:reddit.com goggles', found_at='2026-10-15T12:00:00Z',
                               evidence_mode='search-snippet', excerpt='Need goggles')
@@ -288,6 +289,50 @@ class Checks(unittest.TestCase):
             export_customers(directory)
             with (directory / '客户名单.csv').open(encoding='utf-8-sig', newline='') as stream:
                 self.assertEqual(len(list(csv.DictReader(stream))), 1)
+
+    def test_search_probe_checks_domains_not_snippets_or_tool_success(self):
+        probe = dict(provider='test', query='site:facebook.com equipment',
+                     target_domain='facebook.com', checked_at='2026-10-15T12:00:00Z',
+                     result_urls=[f'https://www.facebook.com/posts/{i}' for i in range(5)])
+        self.assertEqual(assess(probe)['status'], 'usable-sample')
+        foreign = dict(probe, result_urls=[f'https://facebook.com.example.org/{i}' for i in range(5)])
+        self.assertEqual(assess(foreign)['target_count'], 0)
+        self.assertEqual(assess(foreign)['status'], 'site-filter-unreliable')
+        self.assertEqual(assess(dict(probe, result_urls=[]))['status'], 'inconclusive-empty')
+        self.assertEqual(assess(dict(probe, result_urls=[probe['result_urls'][0]] * 5))['status'],
+                         'inconclusive-small-sample')
+        self.assertEqual(assess(dict(probe, response_state='captcha'))['status'], 'captcha')
+        urls = ['https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.facebook.com%2Fp%2F1']
+        self.assertEqual(assess(dict(probe, result_urls=urls))['target_count'], 1)
+        with self.assertRaises(ValueError):
+            assess(dict(probe, checked_at='2026-10-15'))
+
+    def test_both_stores_default_to_exactly_one_csv(self):
+        with tempfile.TemporaryDirectory() as raw:
+            update(raw, [sample()])
+            entry = dict(source_url='https://www.facebook.com/groups/example', product='goggles',
+                         query='site:facebook.com goggles', found_at='2026-10-15T12:00:00Z',
+                         evidence_mode='link-only')
+            update_candidates(raw, [entry])
+            self.assertEqual([p.name for p in Path(raw).glob('*.csv')], ['客户名单.csv'])
+            with (Path(raw) / '客户名单.csv').open(encoding='utf-8-sig', newline='') as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 2)
+            self.assertEqual({r['类型'] for r in rows}, {'需求线索', '发现入口'})
+
+    def test_merge_three_legacy_csvs_into_one_list(self):
+        with tempfile.TemporaryDirectory() as raw:
+            for name, url, text in [('可跟进 leads.csv', 'https://example.com/1', 'Need goggles'),
+                                    ('待核验 candidate.csv', 'https://example.com/2', 'Need boots'),
+                                    ('discovery-links.csv', 'https://example.com/3', '')]:
+                with (Path(raw) / name).open('w', encoding='utf-8-sig', newline='') as stream:
+                    writer = csv.DictWriter(stream, fieldnames=['链接', '需求摘要'])
+                    writer.writeheader()
+                    writer.writerow({'链接': url, '需求摘要': text})
+            from customer_list import export_customers
+            self.assertEqual(export_customers(raw), 3)
+            with (Path(raw) / '客户名单.csv').open(encoding='utf-8-sig', newline='') as stream:
+                self.assertEqual(len(list(csv.DictReader(stream))), 3)
 
     def test_http_success_empty_blocked_and_missing(self):
         class Handler(BaseHTTPRequestHandler):

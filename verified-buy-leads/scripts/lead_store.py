@@ -133,7 +133,7 @@ def atomic_write(path, content, encoding='utf-8'):
             os.unlink(temporary)
 
 
-def update(data_dir, incoming):
+def update(data_dir, incoming, diagnostics=False):
     if not isinstance(incoming, list):
         raise ValueError('Input must be a JSON array')
     for row in incoming:
@@ -177,6 +177,8 @@ def update(data_dir, incoming):
     fields += sorted({k for row in rows for k in row} - set(fields))
     fields += [k for k in ['record_status', 'exclusion_reason', 'source_kind'] if k not in fields]
     for status, filename in [('active', 'leads.csv'), ('review', 'review.csv'), ('history', 'history.csv'), ('excluded', 'excluded.csv')]:
+        if not diagnostics:
+            continue
         output = io.StringIO(newline='')
         writer = csv.DictWriter(output, fieldnames=fields)
         writer.writeheader()
@@ -202,9 +204,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', required=True)
     parser.add_argument('--input', help='Reviewed leads JSON array (full records)')
+    parser.add_argument('--diagnostics', action='store_true', help='Explicitly export internal category CSVs')
     args = parser.parse_args()
     try:
         incoming = json.loads(Path(args.input).read_text(encoding='utf-8-sig')) if args.input else []
-        print(f'Stored {update(args.data_dir, incoming)} leads in {Path(args.data_dir).resolve()}')
+        print(f'Stored {update(args.data_dir, incoming, args.diagnostics)} leads in {Path(args.data_dir).resolve()}')
     except (ValueError, TypeError, KeyError, OSError) as error:
         parser.exit(1, f'Lead store failed: {error}\n')

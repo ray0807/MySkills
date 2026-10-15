@@ -19,13 +19,28 @@ def export_customers(data_dir):
             if not isinstance(rows, list):
                 raise ValueError(f'{filename} must be an array')
             sources.extend((filename, row) for row in rows)
-    # Older exports can be the only surviving source; do not drop those pending leads.
-    if not (directory / 'leads.json').exists():
-        for filename in ('review.csv', 'leads.csv'):
-            path = directory / filename
-            if path.exists():
-                with path.open(encoding='utf-8-sig', newline='') as stream:
-                    sources.extend((filename, row) for row in csv.DictReader(stream))
+    # Import old split files only when their corresponding JSON master is absent.
+    legacy_names = {'review', 'leads', 'candidate-links', 'discovery-links', 'candidate', 'discovery'}
+    aliases = {'source_url': ['链接', '原帖链接'], 'buyer': ['客户或作者', '客户/作者', '名称'],
+               'product': ['产品'], 'need_excerpt': ['需求摘要', '标题或需求摘要'],
+               'title': ['标题', '说明'], 'query': ['搜索词'], 'published_at': ['发布日期'],
+               'found_at': ['发现时间'], 'next_step': ['备注']}
+    for path in sorted(directory.glob('*.csv')):
+        stem = path.stem.lower()
+        candidate_file = stem in {'candidate-links', 'discovery-links', 'candidate', 'discovery'} or stem.startswith(('待核验', '发现入口'))
+        lead_file = stem in {'review', 'leads'} or stem.startswith('可跟进')
+        if not (candidate_file or lead_file or stem in legacy_names):
+            continue
+        master = 'candidates.json' if candidate_file else 'leads.json'
+        if (directory / master).exists():
+            continue
+        with path.open(encoding='utf-8-sig', newline='') as stream:
+            for raw in csv.DictReader(stream):
+                row = dict(raw)
+                for field, labels in aliases.items():
+                    if not row.get(field):
+                        row[field] = next((raw[label] for label in labels if raw.get(label)), '')
+                sources.append((path.name, row))
     indexed = {}
     for filename, row in sources:
         url = row.get('source_url', '')

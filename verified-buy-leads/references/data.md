@@ -2,7 +2,7 @@
 
 默认唯一交付为 客户名单.csv（UTF-8 BOM），由 customer_list.py 合并 candidates.json 与 leads.json；无 leads.json 时兼容旧 review.csv/leads.csv。按规范化 URL 去重，有需求文本/已核验信息优先，旧待核验记录不会因本轮未新增而消失。排除 B2B/付费、关闭/过期/不匹配。只有相关入口也可列入同表，但类型=发现入口，不算有需求客户。状态在列中表示，不让用户理解内部文件分类。
 
-candidate_store.py 默认入库后自动更新这份表，不再生成分区 CSV。--diagnostics 才额外生成下文的内部诊断导出。lead_store.py 仍兼容原有内部导出，并自动刷新统一表；内部文件默认不向用户罗列。已有分区文件保留，不擅自删除历史数据。可运行 `python scripts/customer_list.py --data-dir <目录>` 单独汇总旧数据。
+candidate_store.py 默认入库后自动更新这份表，不再生成分区 CSV。--diagnostics 才额外生成下文的内部诊断导出。lead_store.py 默认也不生成分类 CSV，只刷新统一名单；显式 --diagnostics 才兼容诊断导出；内部文件默认不向用户罗列。已有分区文件保留，不擅自删除历史数据。可运行 `python scripts/customer_list.py --data-dir <目录>` 单独汇总旧数据。
 
 列：类型、客户或作者、产品、标题或需求摘要、链接、状态、发布日期、发现时间、搜索词、备注。累计总数与本轮新增分开；未知字段留空，不推断身份或发布日期。
 
@@ -19,7 +19,7 @@ candidate_store.py 默认入库后自动更新这份表，不再生成分区 CSV
 - source_kind 沿用来源类型，未知可保存但不当已核验；已知 B2B 域名仍自动排除。新 B2B/线索站需 agent 正确标记类型。
 - 所有发现记录强制 verification=unverified、validity/contact_path/identity_confidence=unknown、confirmation=public-unconfirmed，不能靠输入字段升级为核验客户。
 
-导出：candidate-links.csv（有相关需求文本的待核验线索）、discovery-links.csv（仅链接入口）、excluded-candidates.csv（B2B/付费聚合排除项）。candidates.json 保存完整台账；CSV 有 UTF-8 BOM 和公式式文本转义。广告摘要不应写作需求摘录，只作相关入口或排除。文件中候选“线索”不代表已确认客户。
+仅用户明确要求诊断且显式传 --diagnostics 才导出：candidate-links.csv（有相关需求文本的待核验线索）、discovery-links.csv（仅链接入口）、excluded-candidates.csv（B2B/付费聚合排除项）。candidates.json 保存完整台账；CSV 有 UTF-8 BOM 和公式式文本转义。广告摘要不应写作需求摘录，只作相关入口或排除。文件中候选“线索”不代表已确认客户。
 
 示例（占位地址，不是实际线索）：
 
@@ -38,7 +38,7 @@ candidate_store.py 默认入库后自动更新这份表，不再生成分区 CSV
 
 # 线索与状态格式
 
-`leads.json` 是完整 JSON 数组主库；四份 CSV 是互斥分区：可跟进 leads.csv、待核验 review.csv、关闭/过期/不匹配 history.csv、排除项 excluded.csv（不作为客户交付）。history.jsonl 保存更新前版本。CSV 使用 UTF-8 BOM，复杂字段为 JSON 字符串，公式式文本转义。
+`leads.json` 是完整 JSON 数组主库；以下仅为可选诊断格式，不是默认导出或交付：可跟进 leads.csv、待核验 review.csv、关闭/过期/不匹配 history.csv、排除项 excluded.csv（不作为客户交付）。history.jsonl 保存更新前版本。CSV 使用 UTF-8 BOM，复杂字段为 JSON 字符串，公式式文本转义。
 
 ## 记录字段
 
@@ -67,7 +67,7 @@ A 必须来源通过准入、explicit/open/high/matched、有 high 联系方式�
 
 分区优先级：来源属于 B2B/线索目录/付费聚合或 contact_path=paywalled → excluded；其余 closed/expired 或 fit=mismatch → history；possible、来源未知、需新注册、未核实免费联系（证据和至少 medium 的合格联系来源）、supply_route 非 direct → review；其余 explicit/pain → active。已知 B2B 域名不能用 source_kind=social 绕过；证据或联系人仍来自被排除平台时不构成合格免费路径。record_status、exclusion_reason、CSV 中 source_kind 由脚本计算，不接受输入自行提升。excluded 保留审计，仅汇总排除原因，不在推荐客户/待核验候选中混列。active 不代表买家已回复确认。
 
-旧库重建：不带 --input 运行 lead_store.py，重新计算四份导出；原始记录不删除。旧版 free-registration 没有现有账号授权上下文时进入 review；known B2B 即使旧评级 A 也进入 excluded。
+旧库重建：不带 --input 运行 lead_store.py，刷新唯一客户名单.csv；原始记录不删除。旧版 free-registration 没有现有账号授权上下文时进入 review；known B2B 即使旧评级 A 也进入 excluded。
 
 可选证据字段：segment、keyword、quantity、quantity_unit、specifications、published_at、deadline_at、delivery_country、identity_evidence、validity_evidence、fit_gaps、solution_limitations、author、comment_locator、next_step。未知留空，不推断数量和截止日期。
 
