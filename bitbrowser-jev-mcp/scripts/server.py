@@ -19,17 +19,19 @@ def environment():
     modules = {name: importlib.util.find_spec(name) is not None
                for name in ('jev_ultrafast', 'websocket', 'mcp', 'browser_harness', 'httpx')}
     keys = {name: bool(os.environ.get(name, '').strip()) for name in ('TYPESAFE_API_KEY', 'TEXT_MODEL_API_KEY')}
-    missing_keys = [name for name, present in keys.items() if not present]
+    missing_keys = [] if keys['TYPESAFE_API_KEY'] else ['TYPESAFE_API_KEY']
     allowed = [p.strip() for p in os.environ.get('BITBROWSER_ALLOWED_PROFILES', '').split(',') if p.strip()]
     step_ready = all(modules.values()) and bool(allowed) and bool(sys.flags.utf8_mode)
     return {'modules': modules, 'credentials_present': keys, 'allowed_profiles': allowed,
             'missing_credentials': missing_keys,
+            'text_input_ready': step_ready and all(keys.values()),
+            'missing_optional_credentials': [] if keys['TEXT_MODEL_API_KEY'] else ['TEXT_MODEL_API_KEY'],
             'credential_setup_prompt': ('Jev 目标执行需要密钥。请在本机 MCP 环境配置缺少的 ' +
                                         '、'.join(missing_keys) + '，然后重启 MCP 服务再检查；逐步模式无需这些密钥。')
                                        if missing_keys else None,
             'utf8_mode': bool(sys.flags.utf8_mode),
-            'ready': step_ready and all(keys.values()), 'step_ready': step_ready,
-            'goal_ready': step_ready and all(keys.values()),
+            'ready': step_ready and keys['TYPESAFE_API_KEY'], 'step_ready': step_ready,
+            'goal_ready': step_ready and keys['TYPESAFE_API_KEY'],
             'limits': ['no iframe/upload/popup guarantee', 'no forced read-only sandbox', 'in-memory job state'],
             'bitbrowser_api': os.environ.get('BITBROWSER_API_URL', 'http://127.0.0.1:54345')}
 
@@ -60,7 +62,7 @@ def main():
         return {'profiles': api.list_profiles(page, page_size), 'page': page}
 
     @mcp.tool()
-    def submit_goal(profile_id: str, url: str, goal: str, max_steps: int = 30, timeout_seconds: int = 180) -> dict:
+    def submit_goal(profile_id: str, url: str, goal: str, max_steps: int = 12, timeout_seconds: int = 120) -> dict:
         """Execute one user-authorized natural-language stage; calls paid configured models asynchronously."""
         check = environment()
         if not check['ready']:

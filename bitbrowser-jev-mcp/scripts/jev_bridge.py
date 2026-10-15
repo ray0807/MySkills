@@ -31,6 +31,10 @@ def browser_class(upstream, connection):
             try:
                 self.target = connection('Target.createTarget', url='about:blank', background=True)['targetId']
                 self.session = connection('Target.attachToTarget', targetId=self.target, flatten=True)['sessionId']
+                # BitBrowser may ignore input sent to a background/hidden target.
+                # Activate only the test/task tab, never change the profile fingerprint.
+                connection('Target.activateTarget', targetId=self.target)
+                self.call('Page.bringToFront')
                 # Preserve BitBrowser fingerprint/viewport; no metrics, UA or proxy overrides.
                 self.call('Page.navigate', url=url)
                 deadline = time.monotonic() + 15
@@ -41,6 +45,11 @@ def browser_class(upstream, connection):
             except Exception:
                 self.close()
                 raise
+
+        def act(self, action, page, text=None):
+            connection('Target.activateTarget', targetId=self.target)
+            self.call('Page.bringToFront')
+            return super().act(action, page, text=text)
 
         def close(self):
             if self.target:
@@ -80,7 +89,13 @@ def execute(api, profile_id, url, goal, max_steps, timeout_seconds, cancelled, p
                 return {'status': 'cancelled', **summary(agent)}
             if time.monotonic() >= deadline:
                 return {'status': 'budget_exceeded', **summary(agent)}
-            agent.command('tick')
+            try:
+                agent.command('tick')
+            except ValueError as error:
+                if 'TEXT_MODEL_API_KEY' in str(error):
+                    return {'status': 'blocked', 'reason': 'text_model_configuration_required',
+                            'missing_credentials': ['TEXT_MODEL_API_KEY'], **summary(agent)}
+                raise
             result = summary(agent)
             progress({'steps': step + 1, 'url': result['url'], 'jev_status': result['jev_status']})
             if agent.state['status'] in {'done', 'blocked'}:

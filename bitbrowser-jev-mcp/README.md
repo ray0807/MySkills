@@ -16,7 +16,7 @@ AI agent（观察、规划、每步判断、结果核验）
 
 ## 安装
 
-需要 Python 3.12+、Git、已启动且启用本地 API 的 BitBrowser。逐步模式无需 TypeSafe/文本模型密钥，使用外层 AI 自己的判断能力；只有委托 Jev 的目标模式才需要这两类凭据。安装和离线测试不会调用模型。
+需要 Python 3.12+、Git、已启动且启用本地 API 的 BitBrowser。逐步模式无需 TypeSafe/文本模型密钥，使用外层 AI 自己的判断能力；默认 Jev 目标模式需要 TYPESAFE_API_KEY；TEXT_MODEL_API_KEY 仅在执行文字输入时需要。安装和离线测试不会调用模型。
 
 复制整个 Skill 目录到 AI 客户端的技能目录，安装通用说明见[技能库首页](../README.md#如何使用)。在本目录执行：
 
@@ -98,9 +98,9 @@ MCP 地址：`http://127.0.0.1:8767/mcp`。这是 MCP 协议服务，不能按�
 
 ## 两种执行模式
 
-**逐步控制（默认）**：AI 是大脑，工具是手脚。AI 判断“活跃”“值得联系”等条件，直接提供输入文字，工具只执行观察过的动作，不调用 Jev 的决策模型。LinkedIn、Facebook、YouTube 等只是可能使用的页面，不是内置业务模块，也没有承诺这些站点的具体流程已经实测。
+**逐步控制（调试/明确要求时）**：AI 是大脑，工具是手脚。AI 判断“活跃”“值得联系”等条件，直接提供输入文字，工具只执行观察过的动作，不调用 Jev 的决策模型。LinkedIn、Facebook、YouTube 等只是可能使用的页面，不是内置业务模块，也没有承诺这些站点的具体流程已经实测。
 
-**目标执行（可选）**：AI 提交自然语言阶段目标，Jev 自行选动作。需要配置模型凭据，适合较独立的小任务。两种模式互斥：先 close_session 才可 submit_goal；活动 Jev 作业结束后才能 open_session。
+**目标执行（默认）**：外层 AI 提交阶段目标，Jev 自行观察和选动作。只需 Jev 决策 Key 即可开始不含输入的任务；遇输入且缺文本模型 Key 会明确阻塞，不静默切回外层逐点击控制。两种模式互斥：先 close_session 才可 submit_goal；活动 Jev 作业结束后才能 open_session。
 
 ## AI agent 怎么用
 
@@ -118,7 +118,7 @@ MCP 地址：`http://127.0.0.1:8767/mcp`。这是 MCP 协议服务，不能按�
 | --- | --- |
 | `environment_check` | 无参数；检查依赖、凭据存在性与白名单，不调用模型 |
 | `list_profiles` | page=0、page_size=20；查看当前页允许窗口 |
-| `submit_goal` | profile_id、url、goal；可选 max_steps=30、timeout_seconds=180 |
+| `submit_goal` | profile_id、url、goal；可选 max_steps=12、timeout_seconds=120 |
 | `get_job` | job_id；返回状态、当前进度、最终页面证据及动作摘要 |
 | `cancel_job` | job_id；请求取消，当前模型/动作结束后生效 |
 | `open_session` | profile_id、url；建立跨步骤保留状态的标签，不要求执行器模型密钥 |
@@ -182,3 +182,9 @@ AI 核验结果并选择下一步，最终 close_session(session_id)
 ## 缺少密钥时
 
 Jev 目标模式需要 TYPESAFE_API_KEY 与 TEXT_MODEL_API_KEY。环境检查会返回 missing_credentials 和配置提示；AI 只询问缺少的项目，等用户填写到本机 MCP 环境并重启服务后再执行。有效配置不重复询问，错误密钥需更新。逐步控制不使用这两个模型，因此无需为它填写 Jev 密钥。
+
+### 2026-10-15 本机实测
+
+在独立 BitBrowser 测试配置中，通过真实 stdio MCP 验证观察、输入、重复请求去重、点击、页面结果、截图、新建与切换标签及状态保留。修复了后台标签接受 CDP 输入但实际未生效的问题：任务标签在初始化及动作前激活。自建测试标签清理成功，配置窗口保留。本轮未调用付费模型，Jev 目标模式尚未完成真实模型验证。此结果不代表所有网站均已验证。
+
+默认采用“外层AI规划→Jev执行→外层AI验收”。get_job 每5–10秒查进度，避免反复传回全页。goal_ready 不再要求文本模型 Key；text_input_ready 单独表示输入能力。真实付费模型执行尚待验证，已有本机测试仅证明逐步模式链路。
