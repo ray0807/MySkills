@@ -8,6 +8,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+from source_policy import SOURCE_KINDS, eligible_source, excluded_reason, source_kind
 
 ENUMS = {
     'need_level': {'explicit', 'pain', 'possible'},
@@ -61,6 +62,8 @@ def validate(row, strict=True):
         'contact_path': {'free-direct', 'free-registration', 'paywalled', 'unknown'},
         'demand_mode': {'purchase', 'rental', 'service', 'replacement', 'unknown'},
         'supply_route': {'direct', 'partner-only', 'unknown'},
+        'source_kind': SOURCE_KINDS,
+        'access_context': {'public', 'existing-authorized-account', 'registration-required', 'unknown'},
     }.items():
         if row.get(key, 'unknown') not in allowed:
             raise ValueError(f'Invalid {key}')
@@ -88,22 +91,33 @@ def validate(row, strict=True):
     if strict and row['priority'] == 'A' and not (
         row['need_level'] == 'explicit' and row['validity'] == 'open'
         and row['identity_confidence'] == 'high' and row['fit'] == 'matched'
-        and any(c['confidence'] == 'high' for c in row['contacts'])
+        and any(c['confidence'] == 'high' and not excluded_reason(c) for c in row['contacts'])
         and free_contact(row) and row.get('supply_route') == 'direct'
+        and eligible_source(row) and not excluded_reason(row)
     ):
         raise ValueError('A priority requires explicit/open/high/matched, direct supply and evidenced free high confidence contact')
 
 
 def free_contact(row):
-    return (row.get('contact_path') in {'free-direct', 'free-registration'}
+    accessible = (row.get('contact_path') == 'free-direct'
+                  or (row.get('contact_path') == 'free-registration'
+                      and row.get('access_context') == 'existing-authorized-account'))
+    return (accessible
+            and row.get('access_context') != 'registration-required'
             and bool(row.get('contact_path_evidence'))
-            and any(c.get('confidence') in {'high', 'medium'} for c in row.get('contacts', [])))
+            and not excluded_reason(row)
+            and not excluded_reason({'source_url': row.get('contact_path_evidence', {}).get('source_url', '')})
+            and any(c.get('confidence') in {'high', 'medium'} and not excluded_reason(c)
+                    for c in row.get('contacts', [])))
 
 
 def record_status(row):
+    if excluded_reason(row):
+        return 'excluded'
     if row['validity'] in {'closed', 'expired'} or row['fit'] == 'mismatch':
         return 'history'
-    if row['need_level'] == 'possible' or not free_contact(row) or row.get('supply_route') != 'direct':
+    if (row['need_level'] == 'possible' or not free_contact(row)
+            or row.get('supply_route') != 'direct' or not eligible_source(row)):
         return 'review'
     return 'active'
 
@@ -161,17 +175,17 @@ def update(data_dir, incoming):
               'need_level', 'segment', 'pain_type', 'solution_pitch',
               'validity', 'confirmation', 'source_url', 'last_verified_at']
     fields += sorted({k for row in rows for k in row} - set(fields))
-    fields += ['record_status'] if 'record_status' not in fields else []
-    for status, filename in [('active', 'leads.csv'), ('review', 'review.csv'), ('history', 'history.csv')]:
+    fields += [k for k in ['record_status', 'exclusion_reason', 'source_kind'] if k not in fields]
+    for status, filename in [('active', 'leads.csv'), ('review', 'review.csv'), ('history', 'history.csv'), ('excluded', 'excluded.csv')]:
         output = io.StringIO(newline='')
         writer = csv.DictWriter(output, fieldnames=fields)
         writer.writeheader()
         for row in rows:
             if record_status(row) != status:
                 continue
-            safe = {'record_status': status}
+            safe = {'record_status': status, 'exclusion_reason': excluded_reason(row), 'source_kind': source_kind(row)}
             for key, value in row.items():
-                if key == 'record_status':
+                if key in {'record_status', 'exclusion_reason', 'source_kind'}:
                     continue
                 value = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
                 if isinstance(value, str) and value.lstrip().startswith(('=', '+', '-', '@')):

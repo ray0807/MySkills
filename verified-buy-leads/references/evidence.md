@@ -19,9 +19,15 @@ fit=matched/partial/mismatch/unknown。认证、规格、MOQ、交期、原产�
 
 confirmation=public-unconfirmed 默认；buyer-confirmed 必须有回复依据和含时区日期。找到了联系方式不是确认需求。
 
+## 来源准入
+
+先按 channels.md 筛来源。source_kind 为 social/forum/buyer-owned/official-procurement/b2b-marketplace/lead-directory/paid-aggregator/unknown；B2B、线索目录、付费聚合及 paywalled 路径为 excluded，优先于有效期和评级。常见域名由 source-policy.json 拦截，其他来源由 AI 按实际类型标记。unknown 只能 review，不因联系方式可见自动升级。
+
+access_context 为 public/existing-authorized-account/registration-required/unknown。需要新注册或申请加群不能可跟进；已有授权社媒账号可以核实其已有免费权限，不额外登录/申请权限。权限不足如实 blocked。
+
 ## 联系路径与身份
 
-contact_path=free-direct/free-registration/paywalled/unknown；contact_path_evidence 记链接、验证事实与访问时间。免费浏览、免费注册和免费业务联系不是同一能力。只有帖子可见但联系权限未知时仍 unknown，不推测注册可以解锁。
+contact_path=free-direct/free-registration/paywalled/unknown；contact_path_evidence 记链接、验证事实与访问时间。免费浏览、免费注册和免费业务联系不是同一能力。只有帖子可见但联系权限未知时仍 unknown，不推测注册可以解锁。free-registration 只有 access_context=existing-authorized-account 且免费联系路径已实际核实时才能交付。
 
 每个 contacts 保存 type/value/source_url/confidence，只记公开业务联系或明确商务用途，不记私人住址/私人电话，不猜邮箱。平台入口可作业务联系路径，但不代表用户授权已联系。
 
@@ -29,10 +35,10 @@ identity_confidence=high/medium/low/unknown。high 需需求发布者与机构�
 
 ## 优先级与清单
 
-- A：explicit、open、identity high、fit matched、supply_route direct，免费路径有证据并有 high 联系路径。产品能力未知不能 A。
+- A：explicit、open、identity high、fit matched、supply_route direct，来源通过准入、免费路径有证据并有 high 联系路径。产品能力未知不能 A。
 - B：explicit 有明确缺口，或 pain+seeking。
 - C：pain+complaint 或其他有证据的低优先级需求，不容纳广告/纯名单。
 
-能跟进还需 explicit/pain、未关闭/过期、fit 不为 mismatch、contact_path 为有证据的免费路径、有 contacts、supply_route=direct。possible、付费/未知路径、合作商待落实或路径未知进入 review。closed/expired/mismatch 进入 history。优先级不会把 review 自动变成可跟进。
+能跟进还需 explicit/pain、未关闭/过期、fit 不为 mismatch、contact_path 为有证据的免费路径、有 contacts、supply_route=direct。B2B/线索目录/付费聚合或付费联系进入 excluded，不展示为候选客户；possible、未知路径、来源未知、新注册未就绪、合作商待落实进入 review。其余 closed/expired/mismatch 进入 history。优先级不会把 review 自动变成可跟进。
 
 新导入 A 严格校验上述必要字段；历史记录缺字段按 unknown 待复查，不能推断免费或可直接供货。所有记录保留在 leads.json，不因重新分区删除证据。

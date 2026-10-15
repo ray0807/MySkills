@@ -4,10 +4,10 @@
 
 | 层次 | 查询模板 |
 | --- | --- |
-| 明确采购 | "looking for" "{产品}"；"need a supplier" "{词族}"；"WTB" "{型号}"；"request for quotation" "{产品}" |
+| 明确采购 | "looking for" "{产品}"；"need a supplier" "{词族}"；"WTB" "{型号}"；site:facebook.com/groups "{产品}" "looking for" |
 | 本人求助 | "our {现方案}" "{痛点口语}"；"recommend" "{产品}" "for our {场景}"；"what should we replace" "{现方案}" |
 | 当地买方 | {当地采购口语} {当地产品叫法} {城市/场景}，核对作者是买家 |
-| 招标 | "{产品}" tender/RFP/当地招标词，打开原公告核验条目、状态、资格和免费路径 |
+| 补充官方招标（非默认主线） | "{产品}" tender/RFP/当地招标词，打开原公告核验条目、状态、资格和免费路径 |
 | 租赁/服务 | {产品} rental/hire/repair/installation {场景}，识别模式，不把租客当硬件买方 |
 | 信号 | {相关岗位} hiring；{场景} renovation/opening，单列名单 |
 
@@ -22,7 +22,7 @@
 | Reddit/论坛 | 用户求助、采购讨论 | 商业用户与个人消费分清，匿名不乱配同名公司 |
 | 官方采购 | 原公告、附件、修改/授标 | 按目标市场选择，免费浏览不等于有投标资格 |
 
-未能访问记 blocked/not-tested，不声称评论均可索引。不默认注册登录；用户授权已有账号后才用有权限内容。
+未能访问记 blocked/not-tested，不声称评论均可索引。不默认注册登录；用户授权已有账号后才用有权限内容。已有搜索计划中 B2B 查询禁用，不能因社媒失败恢复。
 
 ## 不同产品的示例（不是线索）
 
@@ -31,3 +31,17 @@
 - 宠物胸背带：harness/OEM/private label，区分品牌批量补货与个人咨询；单句“price?”不能证明批量采购。
 
 这些仅展示适配方法，不预装任何产品为默认主题。
+
+## 社媒发现查询
+
+按产品和当地语言替换占位符，买家词与痛点词各试少量，不只搜 supplier 大词：
+
+- `site:facebook.com/groups "{产品}" ("looking for" OR "recommend" OR "need")`
+- `site:facebook.com "{场景}" "{痛点口语}"`
+- `site:youtube.com/watch "{产品}" ("installation" OR "review" OR "problem")`：仅用于发现讨论，随后实际打开评论核验；搜索结果本身不是评论证据。
+- `site:instagram.com "{当地产品词}" "{买方口语}"`：检索可索引原帖，已授权浏览器可查看相关帖子评论；标签页/卖家账号不是客户。
+- `site:reddit.com "{场景}" "what should we replace"`
+
+平台内搜索仅使用真实可用工具及已授权账号。记录站内搜索、网页索引还是实际读了评论，三者不能混称。对普通网页发现查询加常见 `-site:alibaba.com -site:made-in-china.com -site:go4worldbusiness.com` 等排除项；域名排除不能代替按渠道类型审核。
+
+**情景判定**：Facebook 群组只有介绍页可见→blocked，不交付群组为客户；YouTube 评论只有“nice video”→排除；Instagram 作者明确为自有品牌找代工，原文可核验且有免费业务邮箱→按需求、身份、时效、供货继续审查；阿里 RFQ 很新且免费可见→excluded，不作为备选客户。

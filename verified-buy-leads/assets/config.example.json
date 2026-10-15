@@ -14,7 +14,12 @@
     "product_profile": {},
     "product_families": [],
     "local_terms": {},
-    "query_cells": []
+    "query_cells": [],
+    "scenarios": [],
+    "market_languages": [],
+    "dimension_audit": [],
+    "coverage_obligations": [],
+    "expansion_queue": []
   },
   "available_certifications": [],
   "minimum_order_quantity": null,
@@ -36,5 +41,18 @@
   "topic_id": "",
   "business_models": [
     "product-sale"
-  ]
+  ],
+  "source_policy": {
+    "mode": "free-social-first",
+    "policy_file": "source-policy.json",
+    "priority_platforms": [
+      "facebook",
+      "youtube",
+      "instagram"
+    ],
+    "allow_new_registration": false,
+    "use_existing_accounts": "only-when-user-authorized",
+    "b2b_fallback": false
+  },
+  "search_mode": "coverage-first"
 }

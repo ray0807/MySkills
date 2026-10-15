@@ -10,7 +10,7 @@
 | --- | --- |
 | [project-report](project-report/README.md) | 整理项目进度，主动补问缺失的目标、验收和排期信息，通过 MCP 上报到项目管理中心，供 AI 助手汇总项目并安排工作；支持首次授权后的提交后自动上报。 |
 | [store-launch-checker](store-launch-checker/README.md) | 独立站上线验收：检查购买与收单履约闭环、商品、SEO、移动体验、政策、埋点与运营，按证据区分阻断项和未验证项。 |
-| [verified-buy-leads](verified-buy-leads/README.md) | 输入任意产品或关键词，按买家意图、场景、当地语言与平台检索原始需求和本人痛点，核验免费联系及供货路径，分开可跟进、待核验、历史与开发信号，支持增量去重和复查。 |
+| [verified-buy-leads](verified-buy-leads/README.md) | 输入产品或关键词，优先从 Facebook、YouTube、Instagram 等免费社媒群组、帖子和评论寻找真实需求，核验免费联系路径；排除 B2B 交易平台及付费线索，支持增量审查。 |
 | [seo-content-bot](seo-content-bot/README.md) | 研究近期关键词、新闻和读者问题，创作有来源、有观点及配图的 SEO 文章，通过已授权的 HTTP MCP 发布，并支持宿主每日调度。 |
 | [bitbrowser-jev-mcp](bitbrowser-jev-mcp/README.md) | 通用指纹浏览器 MCP 脚手架：AI 观察页面并逐步控制点击、输入和标签切换，也可委托 Jev 执行阶段目标。 |
 | [cocoon-product-main-image](cocoon-product-main-image/README.md) | 商品主图：真实商品白底主图、干净展示图与商品封面，通过 Cocoon 图片 MCP 生成并核验结果。 |

@@ -1,0 +1,14 @@
+{
+  "mode": "free-social-first",
+  "excluded_domains": [
+    "alibaba.com", "1688.com", "made-in-china.com", "globalsources.com",
+    "go4worldbusiness.com", "tradewheel.com", "tradekey.com", "ec21.com",
+    "ecplaza.net", "indiamart.com", "tradeindia.com", "exporthub.com",
+    "exportersindia.com", "govttenders.co.in"
+  ],
+  "social_domains": [
+    "facebook.com", "fb.com", "instagram.com", "youtube.com", "youtu.be",
+    "tiktok.com", "linkedin.com", "reddit.com", "x.com", "twitter.com",
+    "threads.net", "threads.com"
+  ]
+}

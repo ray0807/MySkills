@@ -8,7 +8,8 @@ import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from fetch_public import fetch
-from lead_store import update, validate
+from lead_store import update, validate, record_status
+from source_policy import source_kind
 import run_state
 
 
@@ -99,7 +100,7 @@ class Checks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             directory = Path(raw)
             base = sample()
-            base.update(supply_route='direct', contact_path='free-direct',
+            base.update(supply_route='direct', contact_path='free-direct', source_kind='forum', access_context='public',
                         contacts=[dict(type='website', value='Business contact form',
                                        source_url='https://example.com/contact', confidence='high')],
                         contact_path_evidence=dict(source_url='https://example.com/contact',
@@ -114,7 +115,7 @@ class Checks(unittest.TestCase):
                 validate(invalid)
             records = [active]
             for number, changes in enumerate([
-                {'need_level': 'possible'}, {'contact_path': 'paywalled'},
+                {'need_level': 'possible'}, {'contact_path': 'unknown'},
                 {'supply_route': 'partner-only'}, {'validity': 'closed'},
                 {'validity': 'expired'}, {'fit': 'mismatch'},
             ]):
@@ -134,6 +135,73 @@ class Checks(unittest.TestCase):
             update(directory, [])
             self.assertEqual(count('leads.csv'), 0)
             self.assertEqual(count('review.csv'), 1)
+
+    def test_b2b_and_paid_sources_cannot_be_delivered(self):
+        base = sample()
+        base.update(source_kind='social', source_url='https://www.facebook.com/groups/test/posts/1',
+                    access_context='public', supply_route='direct', contact_path='free-direct',
+                    contacts=[dict(type='email', value='business@example.com', confidence='high',
+                                   source_url='https://example.com/contact')],
+                    contact_path_evidence=dict(source_url='https://example.com/contact',
+                                               observation='Public business email, no payment',
+                                               checked_at='2026-10-15T12:00:00Z'))
+        self.assertEqual(record_status(base), 'active')
+        records = [base]
+        for number, url in enumerate(['https://rfq.alibaba.com/1',
+                                      'https://www.go4worldbusiness.com/buyoffer/2',
+                                      'https://govttenders.co.in/3']):
+            row = copy.deepcopy(base)
+            row.update(stable_key=f'excluded:{number}', source_url=url)
+            self.assertEqual(record_status(row), 'excluded')
+            records.append(row)
+        paid = copy.deepcopy(base)
+        paid.update(stable_key='paid', contact_path='paywalled')
+        self.assertEqual(record_status(paid), 'excluded')
+        records.append(paid)
+        # Unlisted marketplaces must be classified by the reviewer.
+        other = copy.deepcopy(base)
+        other.update(source_url='https://new-market.example/rfq', source_kind='b2b-marketplace')
+        self.assertEqual(record_status(other), 'excluded')
+        # A domain containing the word alibaba is not the actual marketplace.
+        other.update(source_url='https://alibaba.com.example.org/topic', source_kind='forum')
+        self.assertEqual(source_kind(other), 'forum')
+        with tempfile.TemporaryDirectory() as raw:
+            update(raw, records)
+            def rows(name):
+                with (Path(raw) / name).open(encoding='utf-8-sig', newline='') as stream:
+                    return list(csv.DictReader(stream))
+            self.assertEqual(len(rows('leads.csv')), 1)
+            self.assertEqual(len(rows('excluded.csv')), 4)
+            self.assertEqual(rows('review.csv'), [])
+            # Known blocked domains also migrate out of legacy A records.
+            old = copy.deepcopy(records[1])
+            old.update(priority='A', validity='open', identity_confidence='high', fit='matched')
+            (Path(raw) / 'leads.json').write_text(json.dumps([old]), encoding='utf-8')
+            update(raw, [])
+            self.assertEqual(rows('leads.csv'), [])
+            self.assertEqual(len(rows('excluded.csv')), 1)
+
+    def test_registration_and_contact_source_guards(self):
+        row = sample()
+        row.update(source_kind='forum', supply_route='direct', contact_path='free-registration',
+                   contacts=[dict(type='platform', value='Business inquiry', confidence='medium',
+                                  source_url='https://example.com/contact')],
+                   contact_path_evidence=dict(source_url='https://example.com/contact',
+                                              observation='Free inquiry permission observed',
+                                              checked_at='2026-10-15T12:00:00Z'))
+        self.assertEqual(record_status(row), 'review')
+        row['access_context'] = 'registration-required'
+        self.assertEqual(record_status(row), 'review')
+        row['access_context'] = 'existing-authorized-account'
+        self.assertEqual(record_status(row), 'active')
+        row['contact_path_evidence']['source_url'] = 'https://rfq.alibaba.com/contact'
+        self.assertEqual(record_status(row), 'review')
+        row['contact_path_evidence']['source_url'] = 'https://example.com/contact'
+        row['contacts'][0]['source_url'] = 'https://www.tradekey.com/contact'
+        self.assertEqual(record_status(row), 'review')
+        row['contacts'][0]['source_url'] = 'https://example.com/contact'
+        row['source_kind'] = 'unknown'
+        self.assertEqual(record_status(row), 'review')
 
     def test_comments_business_parameters_and_revisit(self):
         self.assertNotEqual(run_state.normalize('https://example.com/p#comment-1'),
