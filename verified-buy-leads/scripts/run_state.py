@@ -47,10 +47,11 @@ def append_jsonl(path, items):
 
 def seen_urls(directory):
     seen = set()
-    master = directory / 'leads.json'
-    if master.exists():
-        for row in json.loads(master.read_text(encoding='utf-8')):
-            seen.add(normalize(row['source_url']))
+    for name in ('leads.json', 'candidates.json'):
+        master = directory / name
+        if master.exists():
+            for row in json.loads(master.read_text(encoding='utf-8')):
+                seen.add(normalize(row['source_url']))
     for name in ('seen.jsonl', 'signals.jsonl'):
         for item in read_jsonl(directory / name):
             if item.get('source_url'):

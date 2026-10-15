@@ -11,6 +11,7 @@ from fetch_public import fetch
 from lead_store import update, validate, record_status
 from source_policy import source_kind
 import run_state
+from candidate_store import update_candidates
 
 
 def sample():
@@ -217,6 +218,54 @@ class Checks(unittest.TestCase):
             self.assertEqual(run_state.check(directory, [url])['seen'], [url])
             with self.assertRaises(ValueError):
                 run_state.mark(directory, [dict(source_url=url, outcome='lead', review_after='2026-01-01')])
+
+    def test_collect_links_without_original_page_or_contacts(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            base = dict(source_url='https://www.facebook.com/groups/test/posts/1?utm_source=x',
+                        product='warehouse equipment', query='site:facebook.com looking for',
+                        found_at='2026-10-15T12:00:00+08:00', evidence_mode='search-snippet',
+                        excerpt='Looking for a warehouse supplier',
+                        verification='verified', validity='open', contact_path='free-direct')
+            entry = dict(source_url='https://www.youtube.com/watch?v=test',
+                         product=base['product'], query='site:youtube.com warehouse',
+                         found_at=base['found_at'], evidence_mode='link-only')
+            paid = dict(base, source_url='https://rfq.alibaba.com/1')
+            self.assertEqual(update_candidates(raw, [base, entry, paid]),
+                             dict(candidate=1, discovery=1, excluded=1))
+            rows = json.loads((directory / 'candidates.json').read_text(encoding='utf-8'))
+            self.assertTrue(all(r['verification'] == 'unverified' and r['validity'] == 'unknown'
+                                and r['contact_path'] == 'unknown' for r in rows))
+            self.assertFalse((directory / 'leads.json').exists())
+            self.assertEqual(run_state.check(directory, [base['source_url']])['seen'], [base['source_url']])
+            # A tracking variant and weaker re-discovery must retain the text without duplicates.
+            weaker = dict(base, source_url=base['source_url'].replace('utm_source=x', 'utm_source=y'),
+                          evidence_mode='link-only', excerpt='')
+            self.assertEqual(update_candidates(raw, [weaker])['candidate'], 1)
+            current = json.loads((directory / 'candidates.json').read_text(encoding='utf-8'))
+            self.assertEqual(len(current), 3)
+            self.assertEqual(current[0]['excerpt'], base['excerpt'])
+            self.assertEqual(current[0]['first_found_at'], base['found_at'])
+            for name, expected in [('candidate-links.csv', 1), ('discovery-links.csv', 1),
+                                   ('excluded-candidates.csv', 1)]:
+                with (directory / name).open(encoding='utf-8-sig', newline='') as stream:
+                    self.assertEqual(len(list(csv.DictReader(stream))), expected)
+
+    def test_bad_discovery_does_not_mutate_and_export_escapes_text(self):
+        with tempfile.TemporaryDirectory() as raw:
+            row = dict(source_url='https://www.instagram.com/p/test/', product='harness',
+                       query='site:instagram.com harness', found_at='2026-10-15T12:00:00Z',
+                       evidence_mode='link-only', title='=HYPERLINK("bad")')
+            update_candidates(raw, [row])
+            master = Path(raw) / 'candidates.json'
+            before = master.read_bytes()
+            for change in [dict(evidence_mode='search-snippet'), dict(source_url='javascript:alert(1)'),
+                           dict(found_at='2026-10-15'), dict(evidence_mode='made-up')]:
+                with self.assertRaises(ValueError):
+                    update_candidates(raw, [dict(row, **change)])
+                self.assertEqual(master.read_bytes(), before)
+            with (Path(raw) / 'discovery-links.csv').open(encoding='utf-8-sig', newline='') as stream:
+                self.assertTrue(next(csv.DictReader(stream))['title'].startswith("'="))
 
     def test_http_success_empty_blocked_and_missing(self):
         class Handler(BaseHTTPRequestHandler):
