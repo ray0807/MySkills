@@ -12,12 +12,14 @@
 
 优先打开原始页面；聚合网站和搜索摘要只用于发现。X 连接器不是必需依赖。
 
-每次运行至少覆盖一个明确需求渠道、一个痛点社区，以及一个触发事件或渠道客户方法；按 channel_runs 的产出调整频率，不用每天把所有低收益渠道搜一遍。查询用当前日期与语言关键词，并正确括起 OR 表达式。不把域名搜索和当地采购资格混为一谈。
+预算优先明确需求与本人痛点，相关且有余量时再查触发事件或渠道客户；按 channel_runs 的产出调整频率，不用每天把所有低收益渠道搜一遍。查询用当前日期与语言关键词，并正确括起 OR 表达式。不把域名搜索和当地采购资格混为一谈。
 
 不沿用旧 HTML 正则抓取脚本：页面结构可能变化，并可能把相邻条目的日期、联系人错配。需要批量抓取时，先查看当前页面/API 官方文档与真实返回结构，再做字段映射和抽样核验。工具失败最多重试一次；429 尊重 Retry-After，超出本次预算就暂停；403、登录墙和验证码不反复重试。
 
 数据目录保存 `channel_runs.jsonl`，每次每渠道记录：
-`run_at, channel, query, segment, layer(explicit/pain/trigger/partner), status, http_status, fetched_count, verified_count, error, next_check_at`。
+`run_at, topic_id, query_id, language, platform, channel, query, segment, layer(explicit/pain/trigger/partner), window_since, window_until, status, http_status, fetched_count, verified_count, eligible_count, noise_count, error, next_check_at`。
 status 为 `ok` / `empty` / `blocked` / `error` / `not-tested`。只有请求和解析成功才能记录 empty。连续三次失败可降低频率，不永久认定渠道失效；下次复查时间由失败原因与预算决定。
 
 触发事件、进口商、渠道客户和中标历史等开发名单另存 `signals.jsonl`，格式见 data.md；不要推定某企业因此正在采购。
+
+每个 query_id 只有 ok/empty 才推进自己的成功窗口；blocked/error/not-tested 下次补查。评论未实际读取不能记已覆盖。记录成功零结果与访问失败的区别，冷却按产品、语言和平台分别管理。

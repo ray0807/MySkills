@@ -4,11 +4,17 @@
   "replaces": [],
   "target_segments": [],
   "keyword_plan": {
-    "explicit": {"en": []},
+    "explicit": {
+      "en": []
+    },
     "pain_points": [],
     "triggers": [],
     "channel_partners": [],
-    "coverage": {}
+    "coverage": {},
+    "product_profile": {},
+    "product_families": [],
+    "local_terms": {},
+    "query_cells": []
   },
   "available_certifications": [],
   "minimum_order_quantity": null,
@@ -19,7 +25,16 @@
   "supplier_origin": null,
   "search_budget_minutes": 45,
   "max_candidates_to_verify": 20,
-  "first_run_lookback_days": {"explicit": 30, "pain": 365, "signal": 90},
+  "first_run_lookback_days": {
+    "explicit": 30,
+    "pain": 365,
+    "signal": 90
+  },
   "data_dir": "lead-hunt-data",
-  "timezone": "Asia/Shanghai"
+  "timezone": "Asia/Shanghai",
+  "keywords": [],
+  "topic_id": "",
+  "business_models": [
+    "product-sale"
+  ]
 }

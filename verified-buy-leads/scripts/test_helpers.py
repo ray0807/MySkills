@@ -1,4 +1,5 @@
 """Offline regression checks: store integrity and HTTP failure handling."""
+import csv
 import copy
 import json
 import tempfile
@@ -7,7 +8,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from fetch_public import fetch
-from lead_store import update
+from lead_store import update, validate
 import run_state
 
 
@@ -53,8 +54,8 @@ class Checks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             pain = sample()
             pain.update(stable_key='test:pain', need_level='pain', pain_type='seeking',
-                        pain_point='投影太暗看不清歌词',
-                        solution_pitch='投影开灯后看不清歌词 → LED 屏高亮度，开灯也清晰')
+                        pain_point='仓库湿度过高',
+                        solution_pitch='仓库潮湿 → 工业除湿机可能改善；需核实面积和温度')
             self.assertEqual(update(directory, [pain]), 1)
             master = Path(directory) / 'leads.json'
             before = master.read_bytes()
@@ -76,6 +77,8 @@ class Checks(unittest.TestCase):
             self.assertEqual(first['mode'], 'first')
             run_state.finish(directory, first['run_started_at'], 'failed', '')
             self.assertEqual(run_state.start(directory)['mode'], 'first')
+            run_state.finish(directory, first['run_started_at'], 'partial', '')
+            self.assertEqual(run_state.start(directory)['mode'], 'first')
             run_state.finish(directory, first['run_started_at'], 'ok', '')
             daily = run_state.start(directory)
             self.assertEqual((daily['mode'], daily['since']), ('daily', first['run_started_at']))
@@ -83,7 +86,7 @@ class Checks(unittest.TestCase):
             run_state.mark(directory, [{'source_url': 'https://forum.example.com/t/9?utm_source=x', 'outcome': 'rejected'}])
             result = run_state.check(directory, [
                 'http://www.example.com/rfq/1/',
-                'https://forum.example.com/t/9?ref=feed',
+                'https://forum.example.com/t/9?utm_source=feed',
                 'https://forum.example.com/t/10?page=2',
                 'https://forum.example.com/t/10?page=2#top',
             ])
@@ -91,6 +94,61 @@ class Checks(unittest.TestCase):
             self.assertEqual(len(result['seen']), 3)
             with self.assertRaises(ValueError):
                 run_state.mark(directory, [{'source_url': 'https://example.com/x', 'outcome': 'maybe'}])
+
+    def test_partitions_and_free_contact_evidence(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            base = sample()
+            base.update(supply_route='direct', contact_path='free-direct',
+                        contacts=[dict(type='website', value='Business contact form',
+                                       source_url='https://example.com/contact', confidence='high')],
+                        contact_path_evidence=dict(source_url='https://example.com/contact',
+                                                   observation='Public business inquiry form, no payment required',
+                                                   checked_at='2026-10-15T12:00:00+08:00'))
+            active = copy.deepcopy(base)
+            active.update(priority='A', validity='open', identity_confidence='high', fit='matched')
+            validate(active)
+            invalid = copy.deepcopy(active)
+            invalid.pop('contact_path_evidence')
+            with self.assertRaises(ValueError):
+                validate(invalid)
+            records = [active]
+            for number, changes in enumerate([
+                {'need_level': 'possible'}, {'contact_path': 'paywalled'},
+                {'supply_route': 'partner-only'}, {'validity': 'closed'},
+                {'validity': 'expired'}, {'fit': 'mismatch'},
+            ]):
+                row = copy.deepcopy(base)
+                row.update(changes, stable_key=f'test:{number+2}')
+                records.append(row)
+            update(directory, records)
+            def count(name):
+                with (directory / name).open(encoding='utf-8-sig', newline='') as stream:
+                    return len(list(csv.DictReader(stream)))
+            self.assertEqual([count(n) for n in ['leads.csv', 'review.csv', 'history.csv']], [1, 3, 3])
+            self.assertEqual(len(json.loads((directory / 'leads.json').read_text(encoding='utf-8'))), 7)
+            # Legacy A lacks new evidence: retain its audit record but do not export as active.
+            legacy = copy.deepcopy(active)
+            legacy.pop('contact_path_evidence')
+            (directory / 'leads.json').write_text(json.dumps([legacy]), encoding='utf-8')
+            update(directory, [])
+            self.assertEqual(count('leads.csv'), 0)
+            self.assertEqual(count('review.csv'), 1)
+
+    def test_comments_business_parameters_and_revisit(self):
+        self.assertNotEqual(run_state.normalize('https://example.com/p#comment-1'),
+                            run_state.normalize('https://example.com/p#comment-2'))
+        self.assertNotEqual(run_state.normalize('https://example.com/p?ref=buyer1'),
+                            run_state.normalize('https://example.com/p?ref=buyer2'))
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            url = 'https://example.com/p#comment-1'
+            run_state.mark(directory, [dict(source_url=url, outcome='lead', review_after='2000-01-01T00:00:00Z')])
+            self.assertEqual(run_state.check(directory, [url])['revisit'], [url])
+            run_state.mark(directory, [dict(source_url=url, outcome='lead', review_after='2099-01-01T00:00:00Z')])
+            self.assertEqual(run_state.check(directory, [url])['seen'], [url])
+            with self.assertRaises(ValueError):
+                run_state.mark(directory, [dict(source_url=url, outcome='lead', review_after='2026-01-01')])
 
     def test_http_success_empty_blocked_and_missing(self):
         class Handler(BaseHTTPRequestHandler):

@@ -32,7 +32,7 @@ def check_time(value):
         raise ValueError('Timestamp must include timezone')
 
 
-def validate(row):
+def validate(row, strict=True):
     if not isinstance(row, dict):
         raise ValueError('Each lead must be an object')
     for key in ('stable_key', 'buyer', 'country', 'product', 'need_excerpt'):
@@ -57,6 +57,21 @@ def validate(row):
         if contact.get('confidence') not in {'high', 'medium', 'low', 'unknown'}:
             raise ValueError('Invalid contact confidence')
         check_url(contact.get('source_url'))
+    for key, allowed in {
+        'contact_path': {'free-direct', 'free-registration', 'paywalled', 'unknown'},
+        'demand_mode': {'purchase', 'rental', 'service', 'replacement', 'unknown'},
+        'supply_route': {'direct', 'partner-only', 'unknown'},
+    }.items():
+        if row.get(key, 'unknown') not in allowed:
+            raise ValueError(f'Invalid {key}')
+    evidence = row.get('contact_path_evidence')
+    if evidence is not None:
+        if not isinstance(evidence, dict) or not str(evidence.get('observation', '')).strip():
+            raise ValueError('Contact path evidence requires an observation')
+        check_url(evidence.get('source_url'))
+        check_time(evidence.get('checked_at'))
+    if row.get('next_review_at'):
+        check_time(row['next_review_at'])
     if row['need_level'] == 'pain':
         expected = {'seeking': 'B', 'complaint': 'C'}
         if row.get('pain_type') not in expected:
@@ -70,12 +85,27 @@ def validate(row):
         if not row.get('confirmation_evidence'):
             raise ValueError('Buyer confirmation requires evidence')
         check_time(row.get('confirmation_at'))
-    if row['priority'] == 'A' and not (
+    if strict and row['priority'] == 'A' and not (
         row['need_level'] == 'explicit' and row['validity'] == 'open'
         and row['identity_confidence'] == 'high' and row['fit'] == 'matched'
         and any(c['confidence'] == 'high' for c in row['contacts'])
+        and free_contact(row) and row.get('supply_route') == 'direct'
     ):
-        raise ValueError('A priority requires explicit/open/high/matched and a high confidence contact')
+        raise ValueError('A priority requires explicit/open/high/matched, direct supply and evidenced free high confidence contact')
+
+
+def free_contact(row):
+    return (row.get('contact_path') in {'free-direct', 'free-registration'}
+            and bool(row.get('contact_path_evidence'))
+            and any(c.get('confidence') in {'high', 'medium'} for c in row.get('contacts', [])))
+
+
+def record_status(row):
+    if row['validity'] in {'closed', 'expired'} or row['fit'] == 'mismatch':
+        return 'history'
+    if row['need_level'] == 'possible' or not free_contact(row) or row.get('supply_route') != 'direct':
+        return 'review'
+    return 'active'
 
 
 def atomic_write(path, content, encoding='utf-8'):
@@ -102,7 +132,7 @@ def update(data_dir, incoming):
     if not isinstance(existing, list):
         raise ValueError('Existing store is not an array')
     for row in existing:
-        validate(row)
+        validate(row, strict=False)
     if len({r['stable_key'] for r in existing}) != len(existing):
         raise ValueError('Existing store contains duplicate keys')
     indexed = {r['stable_key']: r for r in existing}
@@ -131,19 +161,24 @@ def update(data_dir, incoming):
               'need_level', 'segment', 'pain_type', 'solution_pitch',
               'validity', 'confirmation', 'source_url', 'last_verified_at']
     fields += sorted({k for row in rows for k in row} - set(fields))
-    output = io.StringIO(newline='')
-    writer = csv.DictWriter(output, fieldnames=fields)
-    writer.writeheader()
-    for row in rows:
-        safe = {}
-        for key, value in row.items():
-            value = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
-            # Treat spreadsheet formula-like source text as text in the CSV export.
-            if isinstance(value, str) and value.lstrip().startswith(('=', '+', '-', '@')):
-                value = "'" + value
-            safe[key] = value
-        writer.writerow(safe)
-    atomic_write(directory / 'leads.csv', output.getvalue(), 'utf-8-sig')
+    fields += ['record_status'] if 'record_status' not in fields else []
+    for status, filename in [('active', 'leads.csv'), ('review', 'review.csv'), ('history', 'history.csv')]:
+        output = io.StringIO(newline='')
+        writer = csv.DictWriter(output, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
+            if record_status(row) != status:
+                continue
+            safe = {'record_status': status}
+            for key, value in row.items():
+                if key == 'record_status':
+                    continue
+                value = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
+                if isinstance(value, str) and value.lstrip().startswith(('=', '+', '-', '@')):
+                    value = "'" + value
+                safe[key] = value
+            writer.writerow(safe)
+        atomic_write(directory / filename, output.getvalue(), 'utf-8-sig')
     return len(rows)
 
 

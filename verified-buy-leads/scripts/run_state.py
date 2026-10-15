@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from lead_store import check_time, check_url
 
-TRACKING = {'fbclid', 'gclid', 'mc_cid', 'mc_eid', 'ref', 'ref_src', 'igshid', 'si'}
+TRACKING = {'fbclid', 'gclid', 'mc_cid', 'mc_eid', 'ref_src', 'igshid', 'si'}
 OUTCOMES = {'lead', 'signal', 'rejected'}
 RUN_STATUSES = {'ok', 'partial', 'failed'}
 
@@ -29,7 +29,7 @@ def normalize(url):
              if not (k.lower().startswith('utm_') or k.lower() in TRACKING)]
     path = parsed.path.rstrip('/') or '/'
     return urlunparse(('https' if parsed.scheme in {'http', 'https'} else parsed.scheme,
-                       netloc, path, '', urlencode(sorted(query)), ''))
+                       netloc, path, '', urlencode(sorted(query)), '' if parsed.fragment.lower() in {'top', 'topofpage'} else parsed.fragment))
 
 
 def read_jsonl(path):
@@ -60,10 +60,10 @@ def seen_urls(directory):
 
 def start(directory):
     now = datetime.now(timezone.utc)
-    completed = [r for r in read_jsonl(directory / 'runs.jsonl') if r.get('status') in {'ok', 'partial'}]
+    completed = [r for r in read_jsonl(directory / 'runs.jsonl') if r.get('status') == 'ok']
     if not completed:
         return {'mode': 'first', 'since': None, 'run_started_at': now.isoformat()}
-    last = max(completed, key=lambda r: r['run_started_at'])
+    last = max(completed, key=lambda r: datetime.fromisoformat(r['run_started_at'].replace('Z', '+00:00')))
     return {'mode': 'daily', 'since': last['run_started_at'], 'run_started_at': now.isoformat()}
 
 
@@ -71,10 +71,21 @@ def check(directory, urls):
     if not isinstance(urls, list):
         raise ValueError('Input must be a JSON array of URLs')
     seen = seen_urls(directory)
-    result, batch = {'new': [], 'seen': []}, set()
+    latest = {}
+    master = directory / 'leads.json'
+    if master.exists():
+        for item in json.loads(master.read_text(encoding='utf-8')):
+            latest[normalize(item['source_url'])] = item.get('next_review_at')
+    for item in read_jsonl(directory / 'seen.jsonl'):
+        latest[normalize(item['source_url'])] = item.get('review_after')
+    now = datetime.now(timezone.utc)
+    due = {key for key, value in latest.items() if value and
+           datetime.fromisoformat(value.replace('Z', '+00:00')) <= now}
+    result, batch = {'new': [], 'seen': [], 'revisit': []}, set()
     for url in urls:
         key = normalize(url)
-        result['seen' if key in seen or key in batch else 'new'].append(url)
+        bucket = 'seen' if key in batch else ('revisit' if key in due else ('seen' if key in seen else 'new'))
+        result[bucket].append(url)
         batch.add(key)
     return result
 
@@ -87,7 +98,9 @@ def mark(directory, items):
     for item in items:
         if not isinstance(item, dict) or item.get('outcome') not in OUTCOMES:
             raise ValueError('Each item needs outcome lead, signal or rejected')
-        records.append({'source_url': normalize(item.get('source_url')), 'outcome': item['outcome'],
+        if item.get('review_after'):
+            check_time(item['review_after'])
+        records.append({'review_after': item.get('review_after'), 'source_url': normalize(item.get('source_url')), 'outcome': item['outcome'],
                         'reason': item.get('reason', ''), 'marked_at': now})
     append_jsonl(directory / 'seen.jsonl', records)
     return len(records)

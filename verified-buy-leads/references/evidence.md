@@ -1,38 +1,38 @@
-# 证据与优先级
+# 通用需求审查标准
 
-需求证据 `need_level`：
-- `explicit`：原文明确采购或要安装目标产品，保留原文摘录和 URL。数量未知不影响明确求购的判定。
-- `pain`：潜在需求。终端客户**本人亲述**的痛点（求助、求推荐或吐槽），且目标产品能解决该痛点。必须同时填写 `pain_type`、`pain_point` 和 `solution_pitch`。
-- `possible`：询价含义不清或来源只能看到摘要，进入待核验区。
-- `signal`：开发名单。触发事件（开业、翻新、招聘、融资）、进口记录、经销商或安装商、中标历史等，说明对方可能需要但未表达需求。保存到 `signals.jsonl` 单独汇报，不导入主库，不计入线索数。
+## 证据分类
 
-潜在需求 `pain_type`：
-- `seeking`：求助或求推荐（"best display for bar?"、"what should we replace our projector with?"）。客户正在找方案，可直接给方案切入。
-- `complaint`：纯吐槽，未表达找方案的意图（"our projector is so washed out"）。
+- explicit：买方原文明示采购或相应供货服务，保留原话与来源。数量未知可以成立，不对所有产品要求 1000 件。
+- pain：使用方本人描述问题，且用户产品是合理方案。pain_type=seeking 求助/推荐，complaint 只吐槽；必须 pain_point、solution_pitch。评估成本、部署条件、替代方案与反证，不写无依据的优势承诺。
+- possible：摘要、无法定位原评论、单句 price please、角色或对象不清。进 review，不计可跟进。
+- signal：招聘、项目、开业、进口与渠道关系，单列 signals.jsonl，不计需求；不能用纯公司名单凑数。
 
-    10|以下不算潜在需求：第三方泛泛讨论、卖家或安装商的广告、媒体文章、与终端客户无关的技术讨论、产品解决不了的痛点。帖子中客户已经说明问题已解决（如已买到其他方案）时，记 `validity: closed`，只保留历史。
+保留现有 pain 存储名；上传版本的 latent 是同一类概念的别名，不需要破坏已有数据。附件客户编号与需求不导入为新线索。
 
-`solution_pitch` 用一句话写清"痛点 → 产品解决方案"的推理，例如"投影开灯后看不清歌词 → LED 屏高亮度，开灯也清晰"。这句话作为线索备注和跟进话术，不得夸大产品能力或承诺价格。
+## 商业模式与状态
 
-有效状态 `validity`：`open` / `closed` / `expired` / `unknown`。open 需要页面明确开放或未截止的有效采购公告支持；有截止日期时比较用户时区和公告时区，冲突则核验。痛点帖没有截止概念，通常为 `unknown`；明确已解决时为 `closed`。系统导入不自动推定状态。
+demand_mode：purchase/rental/service/replacement/unknown。supply_route：direct/partner-only/unknown。需求真实不等于用户能供货；只卖产品不能把本地短租、维修需求自动计作硬件买家。
 
-确认状态 `confirmation`：`public-unconfirmed` / `buyer-confirmed`。后者需要获授权联系后，买家的明确回复、回复日期与可定位的记录引用；无法公开的邮件或会话可以用本地记录引用，不对外披露。仅找到联系方式不算确认。
+validity=open/closed/expired/unknown。open 要有明确开放证据，例如有效未撤销公告、买方最新说明仍在找。新帖和没有关闭回复不足以证明；社媒痛点通常 unknown。已经解决、授标、买到其他方案或明确拒绝该产品转 history。截止时间按公告时区判断，再转换展示；缺时区影响结果时留 unknown。
 
-身份 `identity_confidence`：
-- `high`：需求发布者与公司或机构有明确关系，且官方来源进一步支持公司身份或联系方式归属。
-- `medium`：公司、地点、业务和职位等多个独立要素相符，但缺少发布者与公司之间的直接关系；跟进先确认身份。
-    20|- `low`：只有同名、国家或附件元数据，或只有论坛账号，不作为可直接报价对象。
-- `unknown`：无法建立关系。
+fit=matched/partial/mismatch/unknown。认证、规格、MOQ、交期、原产地和履约能力分别核对；未知不默认具备。局部可满足标 partial 并列 fit_gaps，不把“产品名一致”当 matched。
 
-痛点帖常只有论坛账号。若帖子提到机构名称、城市或场所，可交叉查找机构官网；无法建立关系时如实标 low 或 unknown，联系路径记为 platform（帖子或账号页面）。
+confirmation=public-unconfirmed 默认；buyer-confirmed 必须有回复依据和含时区日期。找到了联系方式不是确认需求。
 
-每个联系人单独保存来源与 confidence。公司总机/公共邮箱、采购专员和平台入口区分记录；LinkedIn 链接不一定无需登录可联系。附件作者不是采购联系人证明，附件正文出现的公司/采购编号优先。
+## 联系路径与身份
 
-供货匹配 `fit`：`matched` / `partial` / `mismatch` / `unknown`。核对产品、认证、起订量、交期、供应商来源限制；未知认证不假定具备。限制不匹配应写明原因。痛点线索通常尚无规格要求，记 `unknown`，在 `fit_gaps` 写需要了解的条件（如场地尺寸、预算）。
+contact_path=free-direct/free-registration/paywalled/unknown；contact_path_evidence 记链接、验证事实与访问时间。免费浏览、免费注册和免费业务联系不是同一能力。只有帖子可见但联系权限未知时仍 unknown，不推测注册可以解锁。
 
-优先级（统一使用此处规则）：
-    30|- `A`：明确需求、仍开放、身份 high、存在经验证的业务联系路径或已获授权可用的平台入口、供货 matched。潜在需求不定 A。
-- `B`：明确需求，但有效性、身份、联系权限或部分供货条件仍需确认，逐项列出缺口；或潜在需求中的求推荐/求助（`pain` + `seeking`）。
-- `C`：可能需求、弱身份、需要合作商才能执行；或潜在需求中的纯吐槽（`pain` + `complaint`）。闭标、过期、已解决和供货 mismatch 只保留历史，不列入当前跟进清单。
+每个 contacts 保存 type/value/source_url/confidence，只记公开业务联系或明确商务用途，不记私人住址/私人电话，不猜邮箱。平台入口可作业务联系路径，但不代表用户授权已联系。
 
-数量与采购金额是商业排序因素，不是真实性证明。平台 VERIFIED、信任分或付费会员标识也不等于需求有效。发现身份矛盾、付款异常或伪造证据时标注具体事实并暂停推荐，不按姓名或国家直接判断真假。
+identity_confidence=high/medium/low/unknown。high 需需求发布者与机构有明确关系和交叉支持；姓名+国家、同名企业或附件作者不足。匿名账号可证明原作者入口，不自动证明公司身份。联系路径 confidence 与组织身份分开。
+
+## 优先级与清单
+
+- A：explicit、open、identity high、fit matched、supply_route direct，免费路径有证据并有 high 联系路径。产品能力未知不能 A。
+- B：explicit 有明确缺口，或 pain+seeking。
+- C：pain+complaint 或其他有证据的低优先级需求，不容纳广告/纯名单。
+
+能跟进还需 explicit/pain、未关闭/过期、fit 不为 mismatch、contact_path 为有证据的免费路径、有 contacts、supply_route=direct。possible、付费/未知路径、合作商待落实或路径未知进入 review。closed/expired/mismatch 进入 history。优先级不会把 review 自动变成可跟进。
+
+新导入 A 严格校验上述必要字段；历史记录缺字段按 unknown 待复查，不能推断免费或可直接供货。所有记录保留在 leads.json，不因重新分区删除证据。
