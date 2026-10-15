@@ -118,6 +118,59 @@ class Checks(unittest.TestCase):
         self.assertFalse(any(m.startswith('Emulation.') for m, p in calls))
         self.assertNotIn('Browser.close', [m for m, p in calls])
 
+    def test_human_pacing_scroll_mouse_and_typing(self):
+        import jev_ultrafast
+        import jev_bridge
+        upstream = load_isolated(jev_ultrafast, 'browser')
+        calls, delegated, slept = [], [], []
+
+        def connection(method, session_id=None, **params):
+            calls.append((method, params))
+            if method == 'Target.createTarget':
+                return {'targetId': 'owned-tab'}
+            if method == 'Target.attachToTarget':
+                return {'sessionId': 'session'}
+            if method == 'Runtime.evaluate':
+                return {'result': {'value': 'complete'}}
+            return {}
+
+        upstream.Browser.act = lambda self, action, page, text=None: delegated.append((action['kind'], text)) or {}
+        original_sleep, original_env = jev_bridge.time.sleep, os.environ.get('BITBROWSER_PACING')
+        jev_bridge.time.sleep = slept.append
+        try:
+            os.environ['BITBROWSER_PACING'] = 'human'
+            browser = browser_class(upstream, connection)('https://example.com')
+            browser.fresh = lambda page, action=None: True
+            browser.evaluate = lambda expression: [1000, 700]
+            calls.clear()
+            browser.act({'id': 'scroll_down', 'kind': 'scroll', 'delta': 560}, {})
+            wheels = [p['deltaY'] for m, p in calls if m == 'Input.dispatchMouseEvent' and p['type'] == 'mouseWheel']
+            self.assertGreater(len(wheels), 3)
+            self.assertEqual(sum(wheels), 560)
+            self.assertEqual(delegated, [])
+            rect = {'x': 100, 'y': 200, 'w': 80, 'h': 30}
+            browser.act({'id': 'e1', 'kind': 'click', 'node': 1, 'rect': rect}, {})
+            moves = [p for m, p in calls if m == 'Input.dispatchMouseEvent' and p['type'] == 'mouseMoved']
+            self.assertGreaterEqual(len(moves), 10)
+            self.assertTrue(100 <= moves[-1]['x'] <= 180 + 2 and 200 <= moves[-1]['y'] <= 230 + 2)
+            self.assertEqual(delegated[-1], ('click', None))
+            calls.clear()
+            browser.act({'id': 'e2', 'kind': 'fill', 'node': 2, 'rect': rect}, {}, text='hi')
+            self.assertEqual(delegated[-1], ('fill', ''))
+            self.assertEqual([p['text'] for m, p in calls if m == 'Input.insertText'], ['h', 'i'])
+            self.assertTrue(slept and all(s >= 0 for s in slept))
+            os.environ['BITBROWSER_PACING'] = 'off'
+            calls.clear()
+            browser.act({'id': 'e2', 'kind': 'fill', 'node': 2, 'rect': rect}, {}, text='fast')
+            self.assertEqual(delegated[-1], ('fill', 'fast'))
+            self.assertFalse([m for m, p in calls if m in {'Input.insertText', 'Input.dispatchMouseEvent'}])
+        finally:
+            jev_bridge.time.sleep = original_sleep
+            if original_env is None:
+                os.environ.pop('BITBROWSER_PACING', None)
+            else:
+                os.environ['BITBROWSER_PACING'] = original_env
+
     def test_real_jev_agent_with_fake_browser_and_policy(self):
         import jev_ultrafast
         from jev_bridge import load_isolated, summary

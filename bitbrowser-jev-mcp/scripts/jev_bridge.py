@@ -1,6 +1,7 @@
 """Load isolated upstream modules and replace only their browser transport."""
 import importlib.util
 import os
+import random
 import time
 import uuid
 from pathlib import Path
@@ -11,6 +12,15 @@ from bitbrowser import CDP
 # Upstream imports Browser Harness even when its daemon is not used.
 # Keep import-time runtime directories inside this scaffold rather than user config.
 os.environ.setdefault('BH_HOME', str(Path(__file__).resolve().parents[1] / 'runtime' / 'browser-harness'))
+
+
+def pacing_enabled():
+    return os.environ.get('BITBROWSER_PACING', 'human').strip().lower() != 'off'
+
+
+def pause(low, high):
+    if pacing_enabled():
+        time.sleep(random.uniform(low, high))
 
 
 def load_isolated(package, filename):
@@ -46,10 +56,62 @@ def browser_class(upstream, connection):
                 self.close()
                 raise
 
+        mouse = None
+
         def act(self, action, page, text=None):
             connection('Target.activateTarget', targetId=self.target)
             self.call('Page.bringToFront')
-            return super().act(action, page, text=text)
+            kind = action['kind']
+            if not pacing_enabled() or kind == 'wait':
+                return super().act(action, page, text=text)
+            pause(0.6, 1.8)
+            if kind == 'scroll':
+                return self._smooth_scroll(action, page)
+            rect = action.get('rect')
+            if rect and rect.get('w') and rect.get('h') and self.fresh(page, action):
+                self._move_to(rect['x'] + rect['w'] * random.uniform(0.3, 0.7),
+                              rect['y'] + rect['h'] * random.uniform(0.3, 0.7))
+                pause(0.1, 0.35)
+            if kind != 'fill' or not text:
+                return super().act(action, page, text=text)
+            result = super().act(action, page, text='')
+            for event in ('keyDown', 'keyUp'):
+                self.call('Input.dispatchKeyEvent', type=event, key='Backspace', code='Backspace',
+                          windowsVirtualKeyCode=8)
+            pause(0.2, 0.5)
+            for char in text:
+                self.call('Input.insertText', text=char)
+                time.sleep(random.uniform(0.05, 0.17) + (random.uniform(0.25, 0.7) if random.random() < 0.06 else 0))
+            return result
+
+        def _move_to(self, x, y):
+            start = self.mouse or (max(x + random.uniform(-260, 260), 1), max(y + random.uniform(-180, 180), 1))
+            steps = random.randint(10, 18)
+            bend = random.uniform(-40, 40)
+            for index in range(1, steps + 1):
+                t = index / steps
+                ease = t * t * (3 - 2 * t)
+                px = start[0] + (x - start[0]) * ease + bend * (1 - t) * t + random.uniform(-1.5, 1.5)
+                py = start[1] + (y - start[1]) * ease + random.uniform(-1.5, 1.5)
+                self.call('Input.dispatchMouseEvent', type='mouseMoved', x=max(px, 0), y=max(py, 0))
+                time.sleep(random.uniform(0.008, 0.028))
+            self.mouse = (x, y)
+
+        def _smooth_scroll(self, action, page):
+            if not self.fresh(page, action):
+                raise upstream.StalePage('Page changed since this decision. Observe again.')
+            size = self.evaluate('[innerWidth, innerHeight]') or [1100, 760]
+            x = self.mouse[0] if self.mouse else size[0] * random.uniform(0.35, 0.65)
+            y = self.mouse[1] if self.mouse else size[1] * random.uniform(0.4, 0.7)
+            remaining, sign = abs(action['delta']), 1 if action['delta'] > 0 else -1
+            while remaining > 0:
+                step = min(remaining, random.randint(60, 140))
+                self.call('Input.dispatchMouseEvent', type='mouseWheel', x=x, y=y, deltaX=0, deltaY=sign * step)
+                remaining -= step
+                time.sleep(random.uniform(0.03, 0.11))
+            self.after_input = action
+            pause(0.8, 2.2)
+            return {'executed': action['id']}
 
         def close(self):
             if self.target:
