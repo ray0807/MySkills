@@ -77,22 +77,22 @@ class Checks(unittest.TestCase):
 
     def test_run_requires_configured_role_and_is_exclusive(self):
         with self.assertRaises(ValueError):
-            self.runner.start('1688_seller')
+            self.runner.start('1688_seller', '')
         with self.assertRaises(ValueError):
-            self.runner.start('taobao_buyer')
+            self.runner.start('taobao_buyer', 'p1')
         with self.assertRaises(ValueError):
             self.runner.session_id()
-        brief = self.runner.start('1688_buyer', 'Find LED screen suppliers')
+        brief = self.runner.start('1688_buyer', 'p-selected', 'Find LED screen suppliers')
         self.assertEqual(brief['buyer_goal'], {'products': ['LED screen P3.91']})
-        self.assertIn(('open', 'p-buyer', 'https://www.1688.com/'), self.sessions.calls)
+        self.assertIn(('open', 'p-selected', 'https://www.1688.com/'), self.sessions.calls)
         with self.assertRaises(ValueError):
-            self.runner.start('alibaba_seller')
+            self.runner.start('alibaba_seller', 'p-seller')
         self.assertEqual(self.runner.end()['status'], 'ended')
         self.assertIn(('close', 's1'), self.sessions.calls)
         self.assertEqual(self.runner.end()['status'], 'no_active_run')
 
     def test_send_guards_replay_interval_duplicate_and_cap(self):
-        self.runner.start('1688_buyer')
+        self.runner.start('1688_buyer', 'p-buyer')
         first = self.runner.send('snap', 'e9', 'r1', 'Factory A', 'Hello, price for P3.91?', 'P3.91')
         self.assertEqual(first['ledger_status'], 'sent_unverified')
         self.assertTrue(self.runner.send('snap', 'e9', 'r1', 'Factory A', 'Hello, price for P3.91?', 'P3.91')['replay'])
@@ -113,7 +113,7 @@ class Checks(unittest.TestCase):
             self.ledger.set_status(9999, 'sent')
 
     def test_stats_reply_rate_wait_quotes_and_export(self):
-        self.runner.start('1688_buyer')
+        self.runner.start('1688_buyer', 'p-buyer')
         self.runner.send('snap', 'e9', 'r1', 'Factory A', 'Price?', 'P3.91')
         self.clock.advance(1800)
         reply = self.runner.record_inbound('Factory A', '¥980/㎡, MOQ 10', 'P3.91',
@@ -134,6 +134,41 @@ class Checks(unittest.TestCase):
         exported = self.ledger.export_csv(Path(self.temp.name) / 'exports', '1688_buyer', 30)
         self.assertEqual(exported['rows'], 3)
         self.assertTrue(Path(exported['path']).read_text(encoding='utf-8-sig').startswith('role,counterpart'))
+
+    def test_explicit_role_profile_and_persistent_replay(self):
+        with self.assertRaises(TypeError):
+            self.runner.start()
+        with self.assertRaises(ValueError):
+            self.runner.start('auto', 'p1')
+        with self.assertRaises(ValueError):
+            self.runner.start('1688_buyer', '')
+        self.runner.start('1688_buyer', 'chosen-this-time')
+        first = self.runner.send('snap', 'e9', 'persist', 'A', 'Hello', 'LED')
+        self.runner.end()
+        restarted = Runner(self.config, self.ledger, self.sessions)
+        with self.assertRaises(TypeError):
+            restarted.start('1688_buyer')
+        restarted.start('1688_buyer', 'chosen-this-time')
+        self.assertEqual(restarted.send('snap', 'e9', 'persist', 'A', 'Hello', 'LED')['message_id'], first['message_id'])
+        self.assertEqual(len([c for c in self.sessions.calls if c[0] == 'act']), 1)
+        restarted.end()
+        restarted.start('1688_seller', 'different-window')
+        self.assertIn(('open', 'different-window', 'https://work.1688.com/'), self.sessions.calls)
+
+    def test_seller_response_and_repeat_text(self):
+        run = self.runner.start('alibaba_seller', 'p-seller')
+        self.runner.record_inbound('Buyer A', 'Price?', seen_at_text='10:00')
+        self.runner.record_inbound('Buyer B', 'Price?', seen_at_text='10:01')
+        self.clock.advance(600)
+        first = self.runner.send('snap', 'e9', 'seller1', 'Buyer A', 'Please share quantity')
+        self.clock.advance(300)
+        second = self.runner.send('snap', 'e9', 'seller2', 'Buyer A', 'Please share quantity')
+        self.assertNotEqual(first['message_id'], second['message_id'])
+        stats = self.ledger.stats('alibaba_seller')['roles']['alibaba_seller']
+        self.assertEqual(stats['reply_metric'], 'seller_response')
+        self.assertEqual(stats['reply_rate'], 0.5)
+        self.assertEqual(stats['median_first_reply_minutes'], 10.0)
+        self.assertEqual(stats['awaiting_our_reply'], 1)
 
     def test_mcp_stdio_handshake(self):
         from mcp import ClientSession, StdioServerParameters

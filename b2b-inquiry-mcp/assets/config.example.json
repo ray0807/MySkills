@@ -1,9 +1,17 @@
 {
   "roles": {
-    "1688_buyer": {"profile_id": "", "start_url": "https://www.1688.com/"},
-    "1688_seller": {"profile_id": "", "start_url": "https://work.1688.com/"},
-    "alibaba_buyer": {"profile_id": "", "start_url": "https://www.alibaba.com/"},
-    "alibaba_seller": {"profile_id": "", "start_url": "https://i.alibaba.com/"}
+    "1688_buyer": {
+      "start_url": "https://www.1688.com/"
+    },
+    "1688_seller": {
+      "start_url": "https://work.1688.com/"
+    },
+    "alibaba_buyer": {
+      "start_url": "https://www.alibaba.com/"
+    },
+    "alibaba_seller": {
+      "start_url": "https://i.alibaba.com/"
+    }
   },
   "limits": {
     "buyer_daily_messages": 20,
@@ -13,20 +21,41 @@
     "recontact_days": 14
   },
   "buyer_goal": {
-    "products": ["示例：P3.91 户外 LED 租赁屏 500x500mm 箱体"],
+    "products": [
+      "示例：P3.91 户外 LED 租赁屏 500x500mm 箱体"
+    ],
     "quantity": "示例：首批 50 平方米",
     "destination": "示例：深圳交货 / FOB Shenzhen",
-    "questions": ["单价与阶梯价", "起订量", "交期", "是否可寄样及样品费", "质保与认证"],
+    "questions": [
+      "单价与阶梯价",
+      "起订量",
+      "交期",
+      "是否可寄样及样品费",
+      "质保与认证"
+    ],
     "language": "1688 用中文，国际站用英文",
     "max_suppliers_per_run": 10
   },
   "seller_policy": {
     "company": "示例：XX 光电有限公司",
     "products": [
-      {"name": "示例：P2.976 室内租赁屏", "price_range": "示例：USD 320–380/㎡ EXW", "moq": "10㎡", "lead_time": "7–10 天"}
+      {
+        "name": "示例：P2.976 室内租赁屏",
+        "price_range": "示例：USD 320–380/㎡ EXW",
+        "moq": "10㎡",
+        "lead_time": "7–10 天"
+      }
     ],
-    "can_promise": ["上述价格区间内报价", "寄样（运费买家付）", "提供 CE/RoHS 证书"],
-    "must_not_promise": ["低于区间的价格", "账期与赊销", "定制开模的交期"],
+    "can_promise": [
+      "上述价格区间内报价",
+      "寄样（运费买家付）",
+      "提供 CE/RoHS 证书"
+    ],
+    "must_not_promise": [
+      "低于区间的价格",
+      "账期与赊销",
+      "定制开模的交期"
+    ],
     "handoff": "超出范围的问题回复“已记录，稍后由业务经理确认”，并在 notes 记录"
   }
 }

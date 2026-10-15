@@ -35,8 +35,27 @@ class Ledger:
         self.db = sqlite3.connect(str(path), check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        self.db.execute('create table if not exists send_requests(request_id text primary key, payload text not null, receipt text not null)')
         self.lock = threading.Lock()
         self.now = now or (lambda: datetime.now(timezone.utc))
+
+    def reserve_send(self, request_id, payload):
+        with self.lock, self.db:
+            row = self.db.execute('select payload,receipt from send_requests where request_id=?', (request_id,)).fetchone()
+            if row:
+                if row['payload'] != payload:
+                    raise ValueError('request_id already used for a different message')
+                return dict(json.loads(row['receipt']), replay=True)
+            receipt = {'status': 'unknown', 'recorded': False,
+                       'next_step': 'A send was reserved; verify the thread before any retry.'}
+            self.db.execute('insert into send_requests values (?,?,?)',
+                            (request_id, payload, json.dumps(receipt)))
+        return None
+
+    def finish_send(self, request_id, receipt):
+        with self.lock, self.db:
+            self.db.execute('update send_requests set receipt=? where request_id=?',
+                            (json.dumps(receipt), request_id))
 
     def start_run(self, role, goal=''):
         run_id = uuid.uuid4().hex
@@ -59,7 +78,7 @@ class Ledger:
 
     def _add(self, run_id, role, counterpart, product, url, direction, kind, text, status, seen_at_text=None,
              fields=None):
-        digest = hashlib.sha256(text.strip().encode()).hexdigest()
+        digest = hashlib.sha256((text.strip() + ('|' + (seen_at_text or '') if direction == 'in' else '|' + uuid.uuid4().hex)).encode()).hexdigest()
         with self.lock, self.db:
             conversation = self._conversation(role, counterpart.strip(), (product or '').strip(), url)
             cursor = self.db.execute(
@@ -137,11 +156,14 @@ class Ledger:
                 first_out = next((m for m in messages if m['direction'] == 'out' and m['status'] in SENT), None)
                 if first_out:
                     contacted += 1
-                    reply = next((m for m in messages if m['direction'] == 'in' and m['at'] >= first_out['at']), None)
+                    reply = next((m for m in messages if m['direction'] == 'in' and (m['at'], m['id']) > (first_out['at'], first_out['id'])), None)
                     if reply:
                         replied += 1
                         waits.append((parse(reply['at']) - parse(first_out['at'])).total_seconds() / 60)
-                last = messages[-1]
+                valid = [m for m in messages if m['direction'] == 'in' or m['status'] in SENT]
+                if not valid:
+                    continue
+                last = valid[-1]
                 if last['direction'] == 'out' and last['status'] in SENT:
                     awaiting += 1
                 if last['direction'] == 'in':
@@ -150,7 +172,21 @@ class Ledger:
                     if m['direction'] == 'in' and m['fields']:
                         quotes.append({'counterpart': m['counterpart'], 'product': m['product'], 'at': m['at'],
                                        **json.loads(m['fields'])})
+            seller = current.endswith('_seller')
+            if seller:
+                contacted, replied, waits = 0, 0, []
+                for messages in threads.values():
+                    first_in = next((m for m in messages if m['direction'] == 'in'), None)
+                    if first_in:
+                        contacted += 1
+                        reply = next((m for m in messages if m['direction'] == 'out' and m['status'] in SENT
+                                      and (m['at'], m['id']) > (first_in['at'], first_in['id'])), None)
+                        if reply:
+                            replied += 1
+                            waits.append((parse(reply['at']) - parse(first_in['at'])).total_seconds() / 60)
             result[current] = {
+                'reply_metric': 'seller_response' if seller else 'supplier_response',
+                'response_denominator_conversations': contacted, 'responded_conversations': replied,
                 'conversations': len(threads), 'messages_sent': len(outbound), 'messages_received': len(inbound),
                 'inquiries_sent': len([m for m in outbound if m['kind'] == 'inquiry']),
                 'unverified_sends': len([m for m in outbound if m['status'] != 'sent']),

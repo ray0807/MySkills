@@ -1,4 +1,5 @@
 """One active role run: opens its BitBrowser profile, guards sends and records them in the ledger."""
+import json
 import random
 import threading
 
@@ -19,26 +20,29 @@ class Runner:
 
     def roles(self):
         return {'roles': [{'role': role, 'label': info['label'], 'platform': info['platform'], 'side': info['side'],
-                           'configured': bool(info['profile_id']), 'start_url': info['start_url'],
+                           'start_url': info['start_url'],
                            'sent_today': self.ledger.sent_today(role), 'daily_cap': self._daily_cap(role)}
                           for role, info in self.config['roles'].items()],
                 'active_role': self.active and self.active['role']}
 
-    def start(self, role, goal=''):
+    def start(self, role, profile_id, goal=''):
         with self.lock:
             if role not in self.config['roles']:
                 raise ValueError('role must be one of: ' + ', '.join(self.config['roles']))
             if self.active:
                 raise ValueError(f"A run for {self.active['role']} is active; end_run first")
             info = self.config['roles'][role]
-            if not info['profile_id']:
-                raise ValueError(f'Configure roles.{role}.profile_id in {self.config["path"]}')
-            session = self.sessions.open(info['profile_id'], info['start_url'])
+            if not isinstance(profile_id, str) or not profile_id.strip():
+                raise ValueError('Select a BitBrowser profile_id for this run')
+            profile_id = profile_id.strip()
+            if hasattr(self.sessions, 'api'):
+                self.sessions.api.allowed = frozenset([profile_id])
+            session = self.sessions.open(profile_id, info['start_url'])
             run_id = self.ledger.start_run(role, goal)
-            self.active = {'run_id': run_id, 'role': role, 'session_id': session['session_id'], 'goal': goal}
+            self.active = {'run_id': run_id, 'role': role, 'session_id': session['session_id'], 'profile_id': profile_id, 'goal': goal}
             brief = self.config['buyer_goal'] if info['side'] == 'buyer' else self.config['seller_policy']
             return {'run_id': run_id, 'role': role, 'label': info['label'], 'side': info['side'],
-                    'start_url': info['start_url'], 'goal': goal,
+                    'start_url': info['start_url'], 'profile_id': profile_id, 'goal': goal,
                     'buyer_goal' if info['side'] == 'buyer' else 'seller_policy': brief,
                     'limits': self.config['limits'], 'sent_today': self.ledger.sent_today(role),
                     'stats_30d': self.ledger.stats(role, 30)['roles'].get(role),
@@ -53,7 +57,7 @@ class Runner:
         if not self.active:
             return {'active': False}
         role = self.active['role']
-        return {'active': True, **{k: self.active[k] for k in ('run_id', 'role', 'goal')},
+        return {'active': True, **{k: self.active[k] for k in ('run_id', 'role', 'profile_id', 'goal')},
                 'sent_today': self.ledger.sent_today(role), 'daily_cap': self._daily_cap(role),
                 'run_stats': self.ledger.stats(role, 30, self.active['run_id'])['roles'].get(role)}
 
@@ -79,9 +83,14 @@ class Runner:
                 raise ValueError('kind must be inquiry, reply or follow_up')
             if not counterpart.strip() or not text.strip() or len(text) > 4000:
                 raise ValueError('counterpart and text (≤4000 characters) are required')
-            if request_id in self.receipts:
-                previous = self.receipts[request_id]
-                return dict(previous, replay=True)
+            if not request_id.strip():
+                raise ValueError('request_id is required')
+            payload = json.dumps([role, counterpart.strip(), text, product, kind], ensure_ascii=False)
+            stored = self.ledger.db.execute('select payload,receipt from send_requests where request_id=?', (request_id,)).fetchone()
+            if stored:
+                if stored['payload'] != payload:
+                    raise ValueError('request_id already used for a different message')
+                return dict(json.loads(stored['receipt']), replay=True)
             if self.ledger.sent_today(role) >= self._daily_cap(role):
                 return {'status': 'daily_limit_reached', 'daily_cap': self._daily_cap(role),
                         'next_step': 'do not send; end_run or continue reading only'}
@@ -95,9 +104,22 @@ class Runner:
                                                                     self.config['limits']['recontact_days']):
                 return {'status': 'duplicate_inquiry', 'recontact_days': self.config['limits']['recontact_days'],
                         'next_step': 'skip this counterpart or send a follow_up only if the goal requires it'}
+            if kind == 'inquiry':
+                cap = self.config['buyer_goal'].get('max_suppliers_per_run', 10)
+                count = self.ledger.db.execute(
+                    "select count(distinct c.counterpart) n from messages m join conversations c on c.id=m.conversation_id "
+                    "where m.run_id=? and m.kind='inquiry' and m.status in ('sent','sent_unverified','unknown')",
+                    (self.active['run_id'],)).fetchone()['n']
+                if count >= cap:
+                    return {'status': 'supplier_limit_reached', 'limit': cap}
+            replay = self.ledger.reserve_send(request_id, payload)
+            if replay:
+                return replay
             result = self.sessions.act(session_id, snapshot_id, send_action_id, 'click', request_id)
             if result.get('status') == 'rejected':
-                return dict(result, recorded=False)
+                receipt = dict(result, recorded=False)
+                self.ledger.finish_send(request_id, receipt)
+                return receipt
             status = 'sent_unverified' if result.get('status') == 'executed' else 'unknown'
             message_id = self.ledger.add_outbound(self.active['run_id'], role, counterpart, product, url, kind, text,
                                                   status)
@@ -105,7 +127,7 @@ class Runner:
             self.gap = random.uniform(limits['min_send_interval_seconds'], limits['max_send_interval_seconds'])
             receipt = dict(result, message_id=message_id, ledger_status=status, recorded=True,
                            next_step='observe the thread; call confirm_sent with whether the message appears')
-            self.receipts[request_id] = receipt
+            self.ledger.finish_send(request_id, receipt)
             return receipt
 
     def record_inbound(self, counterpart, text, product='', url='', seen_at_text='', fields=None):

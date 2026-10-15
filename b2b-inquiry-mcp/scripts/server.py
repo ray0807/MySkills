@@ -32,7 +32,7 @@ def environment(config=None):
             'config_path': str(CONFIG_PATH), 'config_exists': CONFIG_PATH.is_file(), 'config_error': error,
             'roles_configured': roles, 'data_dir': str(DATA_DIR), 'bitbrowser_api': API_URL,
             'utf8_mode': bool(sys.flags.utf8_mode),
-            'ready': all(modules.values()) and not error and any(roles.values()) and bool(sys.flags.utf8_mode)}
+            'ready': all(modules.values()) and not error and bool(sys.flags.utf8_mode)}
 
 
 def main():
@@ -47,8 +47,8 @@ def main():
     parser.add_argument('--port', type=int, default=8768)
     args = parser.parse_args()
     config = load_config(CONFIG_PATH)
-    profiles = [info['profile_id'] for info in config['roles'].values() if info['profile_id']]
-    sessions = Sessions(BitBrowser(API_URL, profiles))
+    api = BitBrowser(API_URL, [])
+    sessions = Sessions(api)
     ledger = Ledger(DATA_DIR / 'ledger.sqlite3')
     runner = Runner(config, ledger, sessions)
     mcp = FastMCP('b2b-inquiry', host='127.0.0.1', port=args.port)
@@ -60,13 +60,24 @@ def main():
 
     @mcp.tool()
     def list_roles() -> dict:
-        """List the four roles, whether a window is configured, today's sends and daily caps. Ask the user to pick one."""
+        """List the four roles, whether a window is configured, today's sends and daily caps. Ask the user to choose a role for this run."""
         return runner.roles()
 
     @mcp.tool()
-    def start_run(role: str, goal: str = '') -> dict:
-        """Start the run the user picked: 1688_buyer, 1688_seller, alibaba_buyer or alibaba_seller. Opens its window."""
-        return runner.start(role, goal)
+    def list_profiles(page: int = 0, page_size: int = 20) -> dict:
+        """List local BitBrowser IDs/names for user selection; does not authorize opening them."""
+        if page < 0 or not 1 <= page_size <= 100:
+            raise ValueError('Invalid pagination')
+        data = api.request('/browser/list', {'page': page, 'pageSize': page_size})
+        rows = data.get('list', []) if isinstance(data, dict) else []
+        return {'profiles': [{'id': r['id'], 'name': r.get('name', ''), 'seq': r.get('seq')}
+                             for r in rows if r.get('id')], 'page': page,
+                'next_step': 'Ask the user to select a profile_id for this run, even if one was used before.'}
+
+    @mcp.tool()
+    def start_run(role: str, profile_id: str, goal: str = '') -> dict:
+        """Start the role and BitBrowser profile_id explicitly selected by the user for this run: 1688_buyer, 1688_seller, alibaba_buyer or alibaba_seller. Opens its window."""
+        return runner.start(role, profile_id, goal)
 
     @mcp.tool()
     def run_status() -> dict:
