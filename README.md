@@ -13,6 +13,7 @@
 | [verified-buy-leads](verified-buy-leads/README.md) | 按产品、场景和当地语言搜索免费社媒，默认不打开原帖即可收录候选链接；区分需求摘要、仅链接入口与另行核验的客户，排除 B2B/付费线索，无需配置接口。 |
 | [seo-content-bot](seo-content-bot/README.md) | 研究近期关键词、新闻和读者问题，创作有来源、有观点及配图的 SEO 文章，通过已授权的 HTTP MCP 发布，并支持宿主每日调度。 |
 | [bitbrowser-jev-mcp](bitbrowser-jev-mcp/README.md) | 通用指纹浏览器 MCP 脚手架：AI 观察页面并逐步控制点击、输入和标签切换，也可委托 Jev 执行阶段目标。 |
+| [b2b-inquiry-mcp](b2b-inquiry-mcp/README.md) | 1688 / 国际站询盘与回复 MCP：运行前选买方或卖方角色，在 BitBrowser 已登录窗口中按目标询盘或按业务政策自动回复，限制发送频率并统计回复率、回复时长和报价。 |
 | [cocoon-product-main-image](cocoon-product-main-image/README.md) | 商品主图：真实商品白底主图、干净展示图与商品封面，通过 Cocoon 图片 MCP 生成并核验结果。 |
 | [cocoon-product-background](cocoon-product-background/README.md) | 商品背景图：纯背景素材或已有商品图的背景替换，通过 Cocoon 图片 MCP 生成并核验结果。 |
 | [cocoon-product-local-edit](cocoon-product-local-edit/README.md) | 局部修改：指定区域换色、杂物移除和小范围细节编辑，通过 Cocoon 图片 MCP 生成并核验结果。 |
