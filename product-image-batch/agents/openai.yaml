@@ -1,0 +1,4 @@
+interface:
+  display_name: "产品图批量生成"
+  short_description: "读取产品文件夹，批量生成平台产品图，支持样图定风格、保真检查与断点续跑"
+  default_prompt: "使用 $product-image-batch，把我选择目录中的产品原图制作成指定平台的产品套图。"
