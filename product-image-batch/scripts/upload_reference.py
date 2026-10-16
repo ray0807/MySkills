@@ -58,7 +58,8 @@ def upload(file, opener=None):
     boundary = 'CocoonReference' + uuid.uuid4().hex
     request = Request(ENDPOINT, data=multipart(data, key, boundary), method='POST',
                       headers={'Content-Type': f'multipart/form-data; boundary={boundary}',
-                               'Accept': 'application/json'})
+                               'Accept': 'application/json',
+                               'User-Agent': 'ProductImageBatch/1.0'})
     with (opener or build_opener(NoRedirect())).open(request, timeout=45) as response:
         result = json.load(response)
     if result.get('code') != 200 or not isinstance(result.get('data'), dict):
@@ -85,6 +86,11 @@ if __name__ == '__main__':
         print(content)
     except MissingKey as error:
         parser.exit(1, f'configuration_required: {error}\n')
-    except (ValueError, OSError, HTTPError, URLError) as error:
+    except HTTPError as error:
+        # Keep useful diagnostics without response bodies or credential-bearing request data.
+        ray = error.headers.get('CF-Ray', '') if error.headers else ''
+        ray = ''.join(c for c in ray if c.isalnum() or c == '-')[:80]
+        parser.exit(1, f'Upload failed: HTTP {error.code}; request trace={ray or "unavailable"}. Check authentication, limits and service access rules. The cause is not yet confirmed. No automatic retry.\n')
+    except (ValueError, OSError, URLError) as error:
         # Avoid printing server body/request payload, which can contain keyCode.
         parser.exit(1, f'Upload failed ({type(error).__name__}); check local configuration. No automatic retry.\n')
