@@ -5,7 +5,7 @@ description: 将按产品命名的子文件夹及原图批量制作成阿里国�
 
 # 批量产品图
 
-用户操作说明见 [使用指南.md](使用指南.md)，包含目录准备、MCP/Key 配置、余额、样图、结果保存和续跑示例。
+用户操作说明见 [README.md](README.md)，包含目录准备、MCP/Key 配置、余额、样图、结果保存和续跑示例。
 
 本 skill 由 AI 宿主驱动：辅助脚本仅扫描、管理任务与制作预览，不调用模型，不是后台生成服务。使用用户指定的 Cocoon MCP（https://mcp.boomclaws.com/mcp）。先读 [接入与接口](references/cocoon-mcp.md)，依据已连接服务的 tools/list 实际 schema 调用 generate_image / get_image_task / get_points_balance，不擅自切换内置生图或其他服务。连接配置见 [配置模板](assets/mcp-config.example.json)。未连接时可扫描和规划，生成前再补连接；编写或安装 skill 本身不调用生成、不索取 Key。
 
