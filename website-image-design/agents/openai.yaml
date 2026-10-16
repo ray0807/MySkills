@@ -1,0 +1,4 @@
+interface:
+  display_name: "网站开发生图工具"
+  short_description: "在正常网站开发中按需调用 Cocoon 生成配图，处理参考图、余额、保存与页面接入"
+  default_prompt: "使用 $website-image-design 修改我指定的网站区域，需要配图时调用 Cocoon MCP 生成并接入项目。"

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "cocoon-ai": {
+      "url": "https://mcp.boomclaws.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_IMAGE_SERVICE_KEY"
+      }
+    }
+  }
+}
